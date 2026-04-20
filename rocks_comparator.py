@@ -312,56 +312,73 @@ def get_quiver_api_key():
 def load_congressional_trades():
     """
     Pull congressional trade disclosures from the authenticated Quiver API.
-    Falls back to manual CSV upload if the key is missing or the API call fails.
-    Returns: (DataFrame, source_name) or (None, "ALL_FAILED")
+
+    Quiver has multiple endpoints with different scope and speed:
+    - /beta/live/congresstrading — recent trades only, fast, available on all tiers
+    - /beta/bulk/congresstrading — full history, slow, may timeout on Hobbyist tier
+
+    We try live first (it's fast and always works), then bulk as a fallback.
     """
     api_key = get_quiver_api_key()
 
     if not api_key:
         return None, "NO_API_KEY"
 
-    # Quiver's live congressional trading endpoint
-    url = "https://api.quiverquant.com/beta/bulk/congresstrading"
     headers = {
         "Accept": "application/json",
         "Authorization": f"Bearer {api_key}",
     }
 
-    try:
-        r = requests.get(url, headers=headers, timeout=60)
-        if r.status_code == 200:
-            data = r.json()
-            if isinstance(data, list) and len(data) > 0:
-                df = pd.DataFrame(data)
+    # Endpoints to try, in order. We use a longer timeout for bulk because it
+    # can return tens of thousands of records. Cache means this only runs once
+    # per day per Streamlit instance.
+    endpoints = [
+        ("https://api.quiverquant.com/beta/live/congresstrading", 60, "Quiver Live"),
+        ("https://api.quiverquant.com/beta/bulk/congresstrading", 300, "Quiver Bulk"),
+        ("https://api.quiverquant.com/beta/historical/congresstrading", 300, "Quiver Historical"),
+    ]
+
+    last_error = None
+
+    for url, timeout, label in endpoints:
+        try:
+            r = requests.get(url, headers=headers, timeout=timeout)
+            if r.status_code == 200:
                 try:
-                    return normalize_df(df, "quiver_api"), "Quiver Quantitative API"
-                except ValueError as ve:
-                    # Column mapping failed — surface the actual columns
-                    return None, f"COLUMN_MAPPING: {ve}"
+                    data = r.json()
+                except Exception as je:
+                    last_error = f"JSON_PARSE: {je}"
+                    continue
+
+                if isinstance(data, list) and len(data) > 0:
+                    df = pd.DataFrame(data)
+                    try:
+                        normalized = normalize_df(df, "quiver_api")
+                        return normalized, f"Quiver Quantitative API ({label})"
+                    except ValueError as ve:
+                        # Column mapping failed — surface the actual columns
+                        return None, f"COLUMN_MAPPING: {ve}"
+                else:
+                    last_error = f"{label}: empty response"
+                    continue
+            elif r.status_code == 401:
+                return None, "INVALID_API_KEY"
+            elif r.status_code == 403:
+                last_error = f"{label}: forbidden (tier restriction)"
+                continue
+            elif r.status_code == 429:
+                return None, "RATE_LIMITED"
             else:
-                return None, "EMPTY_RESPONSE"
-        elif r.status_code == 401:
-            return None, "INVALID_API_KEY"
-        elif r.status_code == 403:
-            # Fall back to the /beta/live endpoint which requires a different tier
-            try:
-                url2 = "https://api.quiverquant.com/beta/live/congresstrading"
-                r2 = requests.get(url2, headers=headers, timeout=60)
-                if r2.status_code == 200:
-                    data = r2.json()
-                    if isinstance(data, list) and len(data) > 0:
-                        df = pd.DataFrame(data)
-                        try:
-                            return normalize_df(df, "quiver_api"), "Quiver Quantitative API (Live)"
-                        except ValueError as ve:
-                            return None, f"COLUMN_MAPPING: {ve}"
-            except Exception:
-                pass
-            return None, "FORBIDDEN"
-        else:
-            return None, f"API_ERROR_{r.status_code}"
-    except Exception as e:
-        return None, f"EXCEPTION: {str(e)[:300]}"
+                last_error = f"{label}: HTTP {r.status_code}"
+                continue
+        except requests.exceptions.Timeout:
+            last_error = f"{label}: timeout after {timeout}s"
+            continue
+        except Exception as e:
+            last_error = f"{label}: {str(e)[:150]}"
+            continue
+
+    return None, f"ALL_ENDPOINTS_FAILED: {last_error}"
 
 
 def normalize_df(df, source_type):
@@ -593,7 +610,7 @@ st.markdown(
 # ===================================================================
 # DATA LOAD
 # ===================================================================
-with st.spinner("Loading congressional trade data..."):
+with st.spinner("Loading congressional trade data from Quiver (first load may take up to 5 minutes; cached for 24 hours after)..."):
     trades, source_name = load_congressional_trades()
 
 if trades is None:
@@ -617,6 +634,13 @@ if trades is None:
     elif source_name == "FORBIDDEN":
         st.error("Quiver API returned 403 Forbidden. Your subscription tier may not include the congressional trading endpoint.")
         st.info("Check your Quiver plan at api.quiverquant.com/pricing/")
+    elif source_name == "RATE_LIMITED":
+        st.error("Quiver API returned 429 Too Many Requests. You've hit the rate limit for your plan.")
+        st.info("Wait a few minutes and refresh. Or upload a CSV manually below to proceed.")
+    elif source_name.startswith("ALL_ENDPOINTS_FAILED"):
+        st.error("All Quiver endpoints failed.")
+        st.code(source_name, language="text")
+        st.info("This usually means a temporary network issue or that your tier doesn't include these endpoints. Try refreshing, or upload a CSV manually below.")
     elif source_name.startswith("COLUMN_MAPPING"):
         st.error("API worked but column names don't match what was expected.")
         st.code(source_name, language="text")
