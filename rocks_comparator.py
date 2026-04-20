@@ -52,46 +52,69 @@ st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
 
+    /* =============================================
+       THE ROCKS THROWN COMPARATOR · STYLE
+       Journalistic, data-focused, quiet.
+       ============================================= */
+
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+
     /* Core */
     .stApp {
         background-color: #000000;
         color: #ffffff;
         font-family: 'Inter', sans-serif;
     }
+    .main > div { max-width: 1100px; padding-top: 2rem !important; }
     [data-testid="stHeader"] { background: #000; }
     [data-testid="stSidebar"] {
         background: #0a0a0a;
         border-right: 1px solid rgba(255,255,255,0.08);
     }
     [data-testid="stSidebar"] * { color: #ffffff; }
-
-    /* Headings — Space Grotesk */
-    h1, h2, h3, h4, h5, h6 {
-        font-family: 'Space Grotesk', sans-serif !important;
-        letter-spacing: -0.02em;
-        color: #ffffff;
+    [data-testid="stSidebar"] .stSelectbox label,
+    [data-testid="stSidebar"] .stDateInput label {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px !important;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #8a8a8a !important;
+        margin-bottom: 6px;
     }
 
-    /* Main title */
+    /* Headings */
+    h1, h2, h3, h4, h5, h6 {
+        font-family: 'Space Grotesk', sans-serif !important;
+        letter-spacing: -0.025em;
+        color: #ffffff;
+        font-weight: 700 !important;
+    }
+    h2 { font-size: 36px !important; margin-top: 32px !important; margin-bottom: 4px !important; }
+    h3 { font-size: 22px !important; margin-top: 36px !important; margin-bottom: 12px !important; }
+
+    /* Main header */
     .main-title {
         font-family: 'Space Grotesk', sans-serif;
         font-weight: 700;
-        font-size: 48px;
-        line-height: 1;
-        letter-spacing: -0.03em;
-        margin-bottom: 8px;
+        font-size: 46px;
+        line-height: 1.05;
+        letter-spacing: -0.035em;
+        margin-bottom: 12px;
     }
     .main-title .accent {
         color: #00ff9f;
         text-shadow: 0 0 32px rgba(0,255,159,0.55);
     }
     .main-sub {
-        color: #8a8a8a;
-        font-size: 16px;
+        color: #00ff9f;
+        font-size: 12px;
         font-family: 'JetBrains Mono', monospace;
-        letter-spacing: 0.15em;
+        letter-spacing: 0.22em;
         text-transform: uppercase;
-        margin-bottom: 40px;
+        margin-bottom: 32px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
     }
     .main-sub::before {
         content: '';
@@ -101,12 +124,25 @@ st.markdown("""
         background: #00ff9f;
         border-radius: 50%;
         box-shadow: 0 0 12px #00ff9f;
-        margin-right: 12px;
-        vertical-align: middle;
+    }
+    .main-lede {
+        color: #a8a8a8;
+        font-size: 15px;
+        line-height: 1.6;
+        max-width: 680px;
+        margin-bottom: 20px;
+    }
+
+    /* Caption under headers */
+    .stCaption, [data-testid="stCaptionContainer"] {
+        color: #6a6a6a !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 11px !important;
+        letter-spacing: 0.08em;
     }
 
     /* Buttons */
-    .stButton>button {
+    .stButton > button {
         background-color: #00ff9f;
         color: #000;
         font-family: 'JetBrains Mono', monospace;
@@ -118,132 +154,154 @@ st.markdown("""
         padding: 12px 24px;
         transition: all 0.3s;
     }
-    .stButton>button:hover {
-        box-shadow: 0 0 40px rgba(0,255,159,0.55);
+    .stButton > button:hover {
+        box-shadow: 0 0 32px rgba(0,255,159,0.45);
         transform: translateY(-1px);
     }
 
-    /* Selectbox + slider */
+    /* Form inputs */
     .stSelectbox [data-baseweb="select"] > div,
+    .stDateInput > div > div > input,
     .stNumberInput > div > div > input,
     .stTextInput > div > div > input {
-        background: #0a0a0a;
-        border: 1px solid rgba(255,255,255,0.08);
-        color: #fff;
+        background: #0a0a0a !important;
+        border: 1px solid rgba(255,255,255,0.1) !important;
+        color: #fff !important;
         border-radius: 2px;
+        font-family: 'Inter', sans-serif;
+    }
+    .stSelectbox [data-baseweb="select"] > div:hover {
+        border-color: rgba(0,255,159,0.4) !important;
     }
 
-    /* Metric cards */
+    /* Metric cards — tighter and cleaner */
     [data-testid="stMetric"] {
         background: #0a0a0a;
         border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 4px;
-        padding: 24px;
+        border-radius: 3px;
+        padding: 20px;
+        transition: border-color 0.2s;
+    }
+    [data-testid="stMetric"]:hover {
+        border-color: rgba(0,255,159,0.25);
     }
     [data-testid="stMetricLabel"] {
         font-family: 'JetBrains Mono', monospace !important;
-        font-size: 11px !important;
+        font-size: 10px !important;
         letter-spacing: 0.15em;
         text-transform: uppercase;
-        color: #8a8a8a !important;
+        color: #6a6a6a !important;
+        margin-bottom: 4px;
     }
     [data-testid="stMetricValue"] {
         font-family: 'Space Grotesk', sans-serif !important;
         font-weight: 700 !important;
-        font-size: 36px !important;
+        font-size: 32px !important;
         letter-spacing: -0.02em;
+        color: #ffffff !important;
+    }
+    [data-testid="stMetricDelta"] {
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 11px !important;
+        letter-spacing: 0.05em;
     }
 
-    /* Dataframes */
-    .stDataFrame { border: 1px solid rgba(255,255,255,0.08); }
+    /* DataFrames — sleeker */
+    .stDataFrame {
+        border: 1px solid rgba(255,255,255,0.08) !important;
+        border-radius: 3px !important;
+    }
+    [data-testid="stTable"] {
+        background: #0a0a0a !important;
+    }
 
-    /* Verdict box — LIE */
+    /* Verdict boxes — toned down */
     .verdict-lie {
-        background: linear-gradient(135deg, rgba(255,77,77,0.08), rgba(255,77,77,0.02));
-        border: 1px solid rgba(255,77,77,0.35);
-        border-radius: 4px;
+        background: linear-gradient(135deg, rgba(255,77,77,0.06), rgba(255,77,77,0.01));
+        border-left: 3px solid #ff4d4d;
+        border-top: 1px solid rgba(255,77,77,0.15);
+        border-right: 1px solid rgba(255,77,77,0.15);
+        border-bottom: 1px solid rgba(255,77,77,0.15);
+        border-radius: 3px;
         padding: 24px 28px;
-        margin: 12px 0;
+        margin: 16px 0 32px 0;
     }
     .verdict-lie-label {
         font-family: 'JetBrains Mono', monospace;
-        font-size: 11px;
+        font-size: 10px;
         letter-spacing: 0.25em;
         text-transform: uppercase;
         color: #ff4d4d;
-        margin-bottom: 12px;
+        margin-bottom: 10px;
     }
     .verdict-lie-headline {
         font-family: 'Space Grotesk', sans-serif;
         font-weight: 700;
-        font-size: 24px;
-        line-height: 1.2;
+        font-size: 28px;
+        line-height: 1.25;
         letter-spacing: -0.02em;
+        color: #ffffff;
     }
 
-    /* Verdict box — TRUTH */
     .verdict-truth {
-        background: linear-gradient(135deg, rgba(0,255,159,0.08), rgba(0,255,159,0.02));
-        border: 1px solid rgba(0,255,159,0.35);
-        border-radius: 4px;
+        background: linear-gradient(135deg, rgba(0,255,159,0.06), rgba(0,255,159,0.01));
+        border-left: 3px solid #00ff9f;
+        border-top: 1px solid rgba(0,255,159,0.2);
+        border-right: 1px solid rgba(0,255,159,0.2);
+        border-bottom: 1px solid rgba(0,255,159,0.2);
+        border-radius: 3px;
         padding: 24px 28px;
-        margin: 12px 0;
+        margin: 16px 0 32px 0;
     }
     .verdict-truth-label {
         font-family: 'JetBrains Mono', monospace;
-        font-size: 11px;
+        font-size: 10px;
         letter-spacing: 0.25em;
         text-transform: uppercase;
         color: #00ff9f;
-        margin-bottom: 12px;
+        margin-bottom: 10px;
     }
     .verdict-truth-headline {
         font-family: 'Space Grotesk', sans-serif;
         font-weight: 700;
-        font-size: 24px;
-        line-height: 1.2;
+        font-size: 28px;
+        line-height: 1.25;
         letter-spacing: -0.02em;
+        color: #ffffff;
     }
 
-    /* Footer CTA */
-    .cta-card {
+    /* Footer — quiet and journalistic */
+    .footer-card {
         background: #0a0a0a;
-        border: 1px solid rgba(0,255,159,0.35);
-        border-radius: 4px;
-        padding: 40px;
-        text-align: center;
-        margin-top: 60px;
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 3px;
+        padding: 28px;
+        margin-top: 56px;
     }
-    .cta-title {
-        font-family: 'Space Grotesk', sans-serif;
-        font-weight: 700;
-        font-size: 32px;
-        line-height: 1.1;
-        letter-spacing: -0.02em;
-        margin-bottom: 12px;
+    .footer-method {
+        font-size: 13px;
+        line-height: 1.65;
+        color: #a8a8a8;
+        margin-bottom: 16px;
     }
-    .cta-title .accent { color: #00ff9f; text-shadow: 0 0 24px rgba(0,255,159,0.55); }
-    .cta-sub {
-        color: #8a8a8a;
-        font-size: 15px;
-        margin-bottom: 24px;
-    }
-    .cta-button {
-        display: inline-block;
-        background: #00ff9f;
-        color: #000 !important;
-        font-family: 'JetBrains Mono', monospace;
+    .footer-method strong {
+        color: #ffffff;
         font-weight: 600;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-        padding: 16px 32px;
-        border-radius: 2px;
-        text-decoration: none;
-        transition: all 0.3s;
     }
-    .cta-button:hover {
-        box-shadow: 0 0 40px rgba(0,255,159,0.55);
-        transform: translateY(-2px);
+    .footer-brand {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        letter-spacing: 0.05em;
+        color: #6a6a6a;
+        padding-top: 16px;
+        border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .footer-brand a {
+        color: #00ff9f;
+        text-decoration: none;
+    }
+    .footer-brand a:hover {
+        text-decoration: underline;
     }
 
     /* Disclaimer */
@@ -251,36 +309,66 @@ st.markdown("""
         font-family: 'JetBrains Mono', monospace;
         font-size: 10px;
         color: #4a4a4a;
-        line-height: 1.7;
-        margin-top: 40px;
-        padding-top: 20px;
-        border-top: 1px solid rgba(255,255,255,0.08);
+        line-height: 1.8;
+        margin-top: 24px;
+        padding: 0 4px;
         letter-spacing: 0.02em;
     }
 
     /* Info/warning boxes */
     [data-testid="stAlert"] {
         background: #0a0a0a;
-        border: 1px solid rgba(0,255,159,0.25);
-        border-radius: 4px;
+        border: 1px solid rgba(0,255,159,0.2);
+        border-radius: 3px;
     }
     [data-testid="stExpander"] {
         background: #0a0a0a;
         border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 4px;
+        border-radius: 3px;
+    }
+    [data-testid="stExpander"] summary {
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 12px !important;
+        letter-spacing: 0.05em;
+        color: #ffffff !important;
+    }
+
+    /* Progress bar */
+    [data-testid="stProgress"] > div > div > div {
+        background: #00ff9f !important;
+    }
+
+    /* Dividers */
+    hr {
+        border: none !important;
+        border-top: 1px solid rgba(255,255,255,0.08) !important;
+        margin: 24px 0 !important;
     }
 
     /* Hide Streamlit chrome */
     #MainMenu, footer, header { visibility: hidden; }
+    [data-testid="stStatusWidget"] { display: none !important; }
 
     /* Sidebar section labels */
     .sb-label {
         font-family: 'JetBrains Mono', monospace;
         font-size: 10px;
-        letter-spacing: 0.25em;
+        letter-spacing: 0.22em;
         text-transform: uppercase;
         color: #00ff9f;
         margin-top: 20px;
+        margin-bottom: 10px;
+    }
+    .sb-label:first-of-type { margin-top: 0; }
+
+    /* Section headings inside main content */
+    .section-label {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 10px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: #00ff9f;
+        margin-top: 48px;
         margin-bottom: 8px;
     }
 </style>
@@ -597,15 +685,12 @@ def compute_portfolio_stats(bt_results):
 # HEADER
 # ===================================================================
 st.markdown("""
-<div class="main-sub">The Rocks Thrown Comparator · Powered by The Fifth Signal</div>
+<div class="main-sub">The Rocks Thrown Comparator</div>
 <div class="main-title">They watch politicians.<br><span class="accent">We watch what politicians watch.</span></div>
+<p class="main-lede">
+Pick any politician. Pick any hold period. See what you would have actually returned by copying their disclosed trades on the earliest date you could have legally acted on them &mdash; then compare to the S&amp;P 500 over the same window.
+</p>
 """, unsafe_allow_html=True)
-
-st.markdown(
-    "Run the numbers yourself. Pick any politician, pick any hold period, "
-    "and see what copying their trades would have actually returned — using their "
-    "real disclosed trades and the real date a retail buyer could have acted on them.",
-)
 
 # ===================================================================
 # DATA LOAD
@@ -765,37 +850,35 @@ spy_return = get_spy_benchmark(bt_start, bt_end)
 # VERDICT HEADLINE
 # ===================================================================
 st.markdown("---")
-st.markdown(f"### Results · Copying {selected_politician}")
+st.markdown(f"## Copying {selected_politician}")
+st.caption(f"Simulating {hold_days}-day holds entered on the disclosure date of every trade")
 
-col_a, col_b = st.columns(2)
-with col_a:
-    if stats["total_return"] < 0 or (spy_return and stats["total_return"] < spy_return):
-        st.markdown(f"""
-        <div class="verdict-lie">
-            <div class="verdict-lie-label">// The Lie Exposed</div>
-            <div class="verdict-lie-headline">
-                Copying {selected_politician} returned {stats['total_return']:+.1f}%<br>
-                {"· Lost money" if stats['total_return'] < 0 else f"· Underperformed S&P by {spy_return - stats['total_return']:.1f}pp" if spy_return else ""}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown(f"""
-        <div class="verdict-truth">
-            <div class="verdict-truth-label">// Mixed Signal</div>
-            <div class="verdict-truth-headline">
-                Copying {selected_politician} returned {stats['total_return']:+.1f}%<br>
-                · {"Beat" if spy_return and stats['total_return'] > spy_return else "Matched"} S&P — but disclosure lag kills scalability
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+if stats["total_return"] < 0 or (spy_return and stats["total_return"] < spy_return):
+    delta_text = ""
+    if stats['total_return'] < 0 and spy_return:
+        delta_text = f"Lost money while the S&P 500 returned {spy_return:+.1f}%"
+    elif stats['total_return'] < 0:
+        delta_text = "Lost money"
+    elif spy_return:
+        delta_text = f"Underperformed the S&P 500 by {spy_return - stats['total_return']:.1f} percentage points"
 
-with col_b:
+    st.markdown(f"""
+    <div class="verdict-lie">
+        <div class="verdict-lie-label">// Verdict</div>
+        <div class="verdict-lie-headline">
+            Return: {stats['total_return']:+.1f}%<br>
+            <span style="font-size: 16px; font-weight: 500; color: #8a8a8a;">{delta_text}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+else:
+    beat_text = f"Beat the S&P 500 by {stats['total_return'] - spy_return:.1f} percentage points" if spy_return and stats['total_return'] > spy_return else "Matched the S&P 500"
     st.markdown(f"""
     <div class="verdict-truth">
-        <div class="verdict-truth-label">// The Fifth Signal Thesis</div>
+        <div class="verdict-truth-label">// Verdict</div>
         <div class="verdict-truth-headline">
-            Track the data politicians react to — not their 45-day-old filings.
+            Return: {stats['total_return']:+.1f}%<br>
+            <span style="font-size: 16px; font-weight: 500; color: #8a8a8a;">{beat_text}</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -803,7 +886,7 @@ with col_b:
 # ===================================================================
 # METRICS
 # ===================================================================
-st.markdown("### Performance Metrics")
+st.markdown('<div class="section-label">// Performance Metrics</div>', unsafe_allow_html=True)
 
 m1, m2, m3, m4 = st.columns(4)
 with m1:
@@ -833,7 +916,7 @@ with m8:
 # ===================================================================
 # EQUITY CURVE
 # ===================================================================
-st.markdown("### Equity Curve")
+st.markdown('<div class="section-label">// Equity Curve</div>', unsafe_allow_html=True)
 
 equity_df = stats["equity_curve"]
 
@@ -909,41 +992,33 @@ with st.expander(f"Trade-by-trade breakdown ({len(bt)} trades)"):
 # ===================================================================
 w_col, l_col = st.columns(2)
 with w_col:
-    st.markdown("#### Biggest Winners")
+    st.markdown('<div class="section-label" style="margin-top: 32px;">// Biggest Winners</div>', unsafe_allow_html=True)
     winners = bt.nlargest(5, "return_pct")[["ticker", "disclosure_date", "return_pct"]]
     winners.columns = ["Ticker", "Disclosed", "Return %"]
     st.dataframe(winners, use_container_width=True, hide_index=True,
                  column_config={"Return %": st.column_config.NumberColumn(format="%+.2f%%")})
 
 with l_col:
-    st.markdown("#### Biggest Losers")
+    st.markdown('<div class="section-label" style="margin-top: 32px;">// Biggest Losers</div>', unsafe_allow_html=True)
     losers = bt.nsmallest(5, "return_pct")[["ticker", "disclosure_date", "return_pct"]]
     losers.columns = ["Ticker", "Disclosed", "Return %"]
     st.dataframe(losers, use_container_width=True, hide_index=True,
                  column_config={"Return %": st.column_config.NumberColumn(format="%+.2f%%")})
 
 # ===================================================================
-# FOOTER CTA
+# FOOTER
 # ===================================================================
-st.markdown(f"""
-<div class="cta-card">
-    <div class="cta-title">Stop trading <span class="accent">yesterday's news.</span></div>
-    <div class="cta-sub">
-        The politicians aren't the signal. The data they're reacting to is.<br>
-        Seven days. Free. Every alert. Every loser published.
+st.markdown("""
+<div class="footer-card">
+    <div class="footer-method">
+        <strong>Methodology.</strong> For every purchase disclosed by the selected politician since 2020, this tool simulates a retail buyer acquiring the same stock on the disclosure date — the earliest a non-member could legally have acted — and holding for the selected period. Sales are excluded because retail rarely shorts. The S&P 500 benchmark is a simple buy-and-hold over the same window.
     </div>
-    <a href="https://whop.com/the-fifth-signal/trading-options/" class="cta-button" target="_blank">
-        Start 7-Day Free Trial →
-    </a>
+    <div class="footer-brand">
+        Built by <a href="https://thefifthsignal.com" target="_blank">The Fifth Signal</a> &nbsp;·&nbsp; Data from public STOCK Act disclosures via Quiver Quantitative
+    </div>
 </div>
 
 <div class="disclaimer">
-    This tool is provided for informational and educational purposes only. It is not investment advice.
-    All performance data is hypothetical and based on publicly disclosed congressional transactions.
-    The "copy politician" strategy modeled here assumes a retail buyer purchases each disclosed trade
-    at the disclosure date (the earliest a non-member could realistically act) and holds for the
-    selected period. Past performance does not guarantee future results. Options trading involves
-    substantial risk. The Fifth Signal is an educational options alerts publication and is not a
-    registered investment advisor. Data sourced from public STOCK Act disclosures.
+    For informational and educational purposes only. Not investment advice. All performance data is hypothetical and derived from publicly disclosed congressional transactions. Past performance does not guarantee future results. Options trading involves substantial risk. The Fifth Signal is an educational publication and is not a registered investment advisor.
 </div>
 """, unsafe_allow_html=True)
