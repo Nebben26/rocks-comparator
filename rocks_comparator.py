@@ -333,7 +333,11 @@ def load_congressional_trades():
             data = r.json()
             if isinstance(data, list) and len(data) > 0:
                 df = pd.DataFrame(data)
-                return normalize_df(df, "quiver_api"), "Quiver Quantitative API"
+                try:
+                    return normalize_df(df, "quiver_api"), "Quiver Quantitative API"
+                except ValueError as ve:
+                    # Column mapping failed — surface the actual columns
+                    return None, f"COLUMN_MAPPING: {ve}"
             else:
                 return None, "EMPTY_RESPONSE"
         elif r.status_code == 401:
@@ -347,74 +351,78 @@ def load_congressional_trades():
                     data = r2.json()
                     if isinstance(data, list) and len(data) > 0:
                         df = pd.DataFrame(data)
-                        return normalize_df(df, "quiver_api"), "Quiver Quantitative API (Live)"
+                        try:
+                            return normalize_df(df, "quiver_api"), "Quiver Quantitative API (Live)"
+                        except ValueError as ve:
+                            return None, f"COLUMN_MAPPING: {ve}"
             except Exception:
                 pass
             return None, "FORBIDDEN"
         else:
             return None, f"API_ERROR_{r.status_code}"
     except Exception as e:
-        return None, f"EXCEPTION: {str(e)[:100]}"
+        return None, f"EXCEPTION: {str(e)[:300]}"
 
 
 def normalize_df(df, source_type):
     """
     Different sources use different column names.
     This normalizes everything to: politician, ticker, type, transaction_date, disclosure_date, amount
-    """
-    col_map_variants = [
-        # Quiver style
-        {"Representative": "politician", "Senator": "politician",
-         "Ticker": "ticker", "Transaction": "type",
-         "TransactionDate": "transaction_date", "DisclosureDate": "disclosure_date",
-         "Range": "amount", "Amount": "amount"},
-        # HouseStockWatcher style
-        {"representative": "politician", "senator": "politician",
-         "ticker": "ticker", "type": "type",
-         "transaction_date": "transaction_date", "disclosure_date": "disclosure_date",
-         "amount": "amount"},
-    ]
 
+    If a critical column can't be found, raises ValueError with the actual columns
+    so we know what the source provided.
+    """
     # Lowercase all cols for matching
     df.columns = [str(c).strip() for c in df.columns]
     lower_cols = {c.lower(): c for c in df.columns}
 
     out = pd.DataFrame()
+
     # Politician — Quiver uses "Representative" (House) or "Senator" (Senate)
-    for k in ["representative", "senator", "politician", "name", "member", "reporter"]:
+    for k in ["representative", "senator", "politician", "name", "member", "reporter", "trader"]:
         if k in lower_cols:
             out["politician"] = df[lower_cols[k]]
             break
 
     # Ticker — Quiver uses "Ticker"
-    for k in ["ticker", "symbol", "stock_ticker"]:
+    for k in ["ticker", "symbol", "stock_ticker", "stockticker"]:
         if k in lower_cols:
             out["ticker"] = df[lower_cols[k]].astype(str).str.upper().str.strip()
             break
 
     # Type — Quiver uses "Transaction" with values like "Purchase", "Sale (Full)", "Sale (Partial)"
-    for k in ["transaction", "type", "transaction_type"]:
+    for k in ["transaction", "type", "transaction_type", "txn_type", "tradetype", "trade_type"]:
         if k in lower_cols:
             out["type"] = df[lower_cols[k]].astype(str).str.lower()
             break
 
-    # Transaction date — Quiver uses "TransactionDate"
-    for k in ["transactiondate", "transaction_date", "trade_date", "tradedate", "date"]:
+    # Transaction date — Quiver uses "TransactionDate" or sometimes just "Traded"
+    for k in ["transactiondate", "transaction_date", "trade_date", "tradedate", "date", "traded", "traded_on"]:
         if k in lower_cols:
             out["transaction_date"] = pd.to_datetime(df[lower_cols[k]], errors="coerce")
             break
 
-    # Disclosure date / report date — Quiver uses "ReportDate" or "DisclosureDate"
-    for k in ["reportdate", "disclosure_date", "disclosuredate", "filing_date", "filed"]:
+    # Disclosure date / report date — Quiver uses "ReportDate" or "Disclosed"
+    for k in ["reportdate", "report_date", "disclosure_date", "disclosuredate", "filing_date", "filed", "disclosed"]:
         if k in lower_cols:
             out["disclosure_date"] = pd.to_datetime(df[lower_cols[k]], errors="coerce")
             break
 
     # Amount / range — Quiver uses "Range" or "Amount"
-    for k in ["range", "amount", "value", "size"]:
+    for k in ["range", "amount", "value", "size", "trade_size", "transactionsize"]:
         if k in lower_cols:
             out["amount"] = df[lower_cols[k]].astype(str)
             break
+
+    # CRITICAL VALIDATION — if any required column is missing, surface the problem clearly
+    required = ["politician", "ticker", "transaction_date"]
+    missing = [r for r in required if r not in out.columns]
+    if missing:
+        raise ValueError(
+            f"Could not map these required columns: {missing}. "
+            f"Actual columns from source: {list(df.columns)}. "
+            f"Sample row: {df.iloc[0].to_dict() if len(df) > 0 else 'empty'}"
+        )
 
     # Clean
     out = out.dropna(subset=["politician", "ticker", "transaction_date"])
@@ -609,6 +617,10 @@ if trades is None:
     elif source_name == "FORBIDDEN":
         st.error("Quiver API returned 403 Forbidden. Your subscription tier may not include the congressional trading endpoint.")
         st.info("Check your Quiver plan at api.quiverquant.com/pricing/")
+    elif source_name.startswith("COLUMN_MAPPING"):
+        st.error("API worked but column names don't match what was expected.")
+        st.code(source_name, language="text")
+        st.info("Copy the text above (especially the 'Actual columns' and 'Sample row' parts) and send it to the developer to fix the column mapping.")
     else:
         st.warning(f"Could not load live data. Reason: `{source_name}`. Upload a CSV manually below.")
 
