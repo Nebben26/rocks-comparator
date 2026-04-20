@@ -664,20 +664,36 @@ st.caption(f"Data source: **{source_name}** · {len(trades):,} trades loaded · 
 # ===================================================================
 st.sidebar.markdown('<div class="sb-label">// Target</div>', unsafe_allow_html=True)
 
-politicians = sorted(trades["politician"].dropna().unique().tolist())
-# Put well-known names at top
+# Count trades per politician to determine the best default
+trade_counts = trades.groupby("politician").size().sort_values(ascending=False)
+politicians = trade_counts.index.tolist()
+
+# Priority order: put well-known names at top of dropdown IF they have enough trades
 priority = ["Nancy Pelosi", "Paul Pelosi", "Dan Crenshaw", "Marjorie Taylor Greene",
             "Josh Gottheimer", "Ro Khanna", "Mark Green", "Tommy Tuberville",
             "Shelley Moore Capito", "Ron Wyden"]
-priority_present = [p for p in priority if p in politicians]
+priority_present = [p for p in priority if p in politicians and trade_counts[p] >= 5]
 others = [p for p in politicians if p not in priority_present]
 ordered = priority_present + others
+
+# Smart default: the politician with the most trades (makes the demo compelling)
+# Unless a priority name has at least 5 trades, in which case use them
+if priority_present:
+    default_idx = ordered.index(priority_present[0])
+else:
+    default_idx = 0  # top trader overall
 
 selected_politician = st.sidebar.selectbox(
     "Politician",
     ordered,
-    index=0 if ordered else None,
+    index=default_idx,
+    format_func=lambda p: f"{p} ({trade_counts[p]} trades)",
 )
+
+# Show data coverage info
+date_min = trades["transaction_date"].min().date()
+date_max = trades["transaction_date"].max().date()
+st.sidebar.caption(f"Dataset: {len(trades):,} trades · {date_min} to {date_max}")
 
 st.sidebar.markdown('<div class="sb-label">// Hold Period</div>', unsafe_allow_html=True)
 hold_days = st.sidebar.selectbox(
@@ -914,10 +930,10 @@ st.markdown(f"""
     <div class="cta-title">Stop trading <span class="accent">yesterday's news.</span></div>
     <div class="cta-sub">
         The politicians aren't the signal. The data they're reacting to is.<br>
-        Two weeks. One dollar. Every alert. Every loser published.
+        Seven days. Free. Every alert. Every loser published.
     </div>
-    <a href="https://thecapitoldossier.com" class="cta-button" target="_blank">
-        Start 14-Day Trial · $1 →
+    <a href="https://whop.com/the-fifth-signal/trading-options/" class="cta-button" target="_blank">
+        Start 7-Day Free Trial →
     </a>
 </div>
 
