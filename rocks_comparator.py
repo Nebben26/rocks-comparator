@@ -291,52 +291,70 @@ st.markdown("""
 # DATA LOADING
 # ===================================================================
 
-# Multiple data source URLs — we try each until one works.
-# This makes the app resilient to any single provider going down.
-CONGRESSIONAL_TRADE_SOURCES = [
-    # Primary: Quiver Quantitative public CSV export
-    "https://www.quiverquant.com/congresstrading/downloadCSV",
-    # Fallback: community GitHub mirrors (these get updated by contributors)
-    "https://raw.githubusercontent.com/timothycarambat/house-stock-watcher-data/main/data/all_transactions.json",
-    "https://raw.githubusercontent.com/jeremiak/house-stock-watcher-data/master/data/all_transactions.json",
-]
+# ===================================================================
+# DATA SOURCES — authenticated Quiver Quantitative API (primary)
+# ===================================================================
+
+# The Quiver API key is loaded from Streamlit Secrets, never hardcoded.
+# In local dev: create a file at .streamlit/secrets.toml with:
+#     QUIVER_API_KEY = "your_key_here"
+# On Streamlit Cloud: go to App Settings → Secrets and add the same line.
+
+def get_quiver_api_key():
+    """Fetch the Quiver API key from Streamlit secrets. Returns None if not set."""
+    try:
+        return st.secrets.get("QUIVER_API_KEY", None)
+    except Exception:
+        return None
 
 
 @st.cache_data(ttl=86400, show_spinner=False)  # cache for 24 hours
 def load_congressional_trades():
     """
-    Try multiple sources until one works. Returns a cleaned DataFrame
-    with columns: politician, ticker, type, transaction_date, disclosure_date, amount
+    Pull congressional trade disclosures from the authenticated Quiver API.
+    Falls back to manual CSV upload if the key is missing or the API call fails.
+    Returns: (DataFrame, source_name) or (None, "ALL_FAILED")
     """
-    errors = []
+    api_key = get_quiver_api_key()
 
-    # Try Quiver CSV first
+    if not api_key:
+        return None, "NO_API_KEY"
+
+    # Quiver's live congressional trading endpoint
+    url = "https://api.quiverquant.com/beta/bulk/congresstrading"
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
+
     try:
-        r = requests.get(
-            CONGRESSIONAL_TRADE_SOURCES[0],
-            timeout=30,
-            headers={"User-Agent": "Mozilla/5.0 (Fifth Signal Comparator)"}
-        )
-        if r.status_code == 200 and len(r.content) > 1000:
-            df = pd.read_csv(StringIO(r.text))
-            return normalize_df(df, "quiver_csv"), "Quiver Quantitative"
+        r = requests.get(url, headers=headers, timeout=60)
+        if r.status_code == 200:
+            data = r.json()
+            if isinstance(data, list) and len(data) > 0:
+                df = pd.DataFrame(data)
+                return normalize_df(df, "quiver_api"), "Quiver Quantitative API"
+            else:
+                return None, "EMPTY_RESPONSE"
+        elif r.status_code == 401:
+            return None, "INVALID_API_KEY"
+        elif r.status_code == 403:
+            # Fall back to the /beta/live endpoint which requires a different tier
+            try:
+                url2 = "https://api.quiverquant.com/beta/live/congresstrading"
+                r2 = requests.get(url2, headers=headers, timeout=60)
+                if r2.status_code == 200:
+                    data = r2.json()
+                    if isinstance(data, list) and len(data) > 0:
+                        df = pd.DataFrame(data)
+                        return normalize_df(df, "quiver_api"), "Quiver Quantitative API (Live)"
+            except Exception:
+                pass
+            return None, "FORBIDDEN"
+        else:
+            return None, f"API_ERROR_{r.status_code}"
     except Exception as e:
-        errors.append(f"Quiver: {e}")
-
-    # Try JSON mirrors
-    for url in CONGRESSIONAL_TRADE_SOURCES[1:]:
-        try:
-            r = requests.get(url, timeout=30)
-            if r.status_code == 200:
-                data = r.json()
-                if isinstance(data, list) and len(data) > 0:
-                    df = pd.DataFrame(data)
-                    return normalize_df(df, "house_json"), "GitHub Mirror"
-        except Exception as e:
-            errors.append(f"{url[:50]}: {e}")
-
-    # All sources failed — return None so the app can prompt for CSV upload
-    return None, "ALL_FAILED"
+        return None, f"EXCEPTION: {str(e)[:100]}"
 
 
 def normalize_df(df, source_type):
@@ -362,38 +380,38 @@ def normalize_df(df, source_type):
     lower_cols = {c.lower(): c for c in df.columns}
 
     out = pd.DataFrame()
-    # Politician
-    for k in ["representative", "senator", "politician", "name", "member"]:
+    # Politician — Quiver uses "Representative" (House) or "Senator" (Senate)
+    for k in ["representative", "senator", "politician", "name", "member", "reporter"]:
         if k in lower_cols:
             out["politician"] = df[lower_cols[k]]
             break
 
-    # Ticker
+    # Ticker — Quiver uses "Ticker"
     for k in ["ticker", "symbol", "stock_ticker"]:
         if k in lower_cols:
             out["ticker"] = df[lower_cols[k]].astype(str).str.upper().str.strip()
             break
 
-    # Type
-    for k in ["type", "transaction_type", "transaction"]:
+    # Type — Quiver uses "Transaction" with values like "Purchase", "Sale (Full)", "Sale (Partial)"
+    for k in ["transaction", "type", "transaction_type"]:
         if k in lower_cols:
             out["type"] = df[lower_cols[k]].astype(str).str.lower()
             break
 
-    # Transaction date
-    for k in ["transaction_date", "transactiondate", "trade_date", "date"]:
+    # Transaction date — Quiver uses "TransactionDate"
+    for k in ["transactiondate", "transaction_date", "trade_date", "tradedate", "date"]:
         if k in lower_cols:
             out["transaction_date"] = pd.to_datetime(df[lower_cols[k]], errors="coerce")
             break
 
-    # Disclosure date
-    for k in ["disclosure_date", "disclosuredate", "filing_date", "filed"]:
+    # Disclosure date / report date — Quiver uses "ReportDate" or "DisclosureDate"
+    for k in ["reportdate", "disclosure_date", "disclosuredate", "filing_date", "filed"]:
         if k in lower_cols:
             out["disclosure_date"] = pd.to_datetime(df[lower_cols[k]], errors="coerce")
             break
 
-    # Amount
-    for k in ["amount", "range", "value", "size"]:
+    # Amount / range — Quiver uses "Range" or "Amount"
+    for k in ["range", "amount", "value", "size"]:
         if k in lower_cols:
             out["amount"] = df[lower_cols[k]].astype(str)
             break
@@ -571,14 +589,30 @@ with st.spinner("Loading congressional trade data..."):
     trades, source_name = load_congressional_trades()
 
 if trades is None:
-    st.error("Unable to reach live congressional trade sources.")
-    st.markdown("""
-    **Upload a CSV manually:**
-    Download a recent trade dataset from any of these sources and upload below:
-    - [Quiver Quantitative Congress Trading](https://www.quiverquant.com/congresstrading/)
-    - [Capitol Trades](https://www.capitoltrades.com/)
-    - [House Stock Watcher GitHub](https://github.com/timothycarambat/house-stock-watcher-data)
-    """)
+    if source_name == "NO_API_KEY":
+        st.error("Quiver API key not configured.")
+        st.markdown("""
+        **To connect your Quiver API key:**
+
+        1. In your deployed Streamlit app, click the **`⋮`** menu in the top-right → **Settings** → **Secrets**
+        2. Paste this line (replace with your actual key):
+           ```
+           QUIVER_API_KEY = "your_quiver_api_key_here"
+           ```
+        3. Click **Save**. The app will reboot automatically.
+
+        **Or upload a CSV manually for a one-time run:**
+        """)
+    elif source_name == "INVALID_API_KEY":
+        st.error("Quiver API returned 401 Unauthorized. The API key in your secrets is invalid or expired.")
+        st.info("Double-check the key at api.quiverquant.com → your account. Then update it in App Settings → Secrets.")
+    elif source_name == "FORBIDDEN":
+        st.error("Quiver API returned 403 Forbidden. Your subscription tier may not include the congressional trading endpoint.")
+        st.info("Check your Quiver plan at api.quiverquant.com/pricing/")
+    else:
+        st.warning(f"Could not load live data. Reason: `{source_name}`. Upload a CSV manually below.")
+
+    st.markdown("**Manual CSV upload (fallback):**")
     uploaded = st.file_uploader("Upload congressional trades CSV", type=["csv"])
     if uploaded:
         df = pd.read_csv(uploaded)
