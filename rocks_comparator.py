@@ -349,6 +349,22 @@ st.markdown("""
     #MainMenu, footer, header { visibility: hidden; }
     [data-testid="stStatusWidget"] { display: none !important; }
 
+    /* Prevent user from collapsing the sidebar — controls are essential */
+    [data-testid="stSidebarCollapseButton"],
+    [data-testid="collapsedControl"],
+    button[kind="headerNoPadding"][aria-label*="sidebar" i],
+    button[aria-label="Close sidebar"],
+    button[aria-label="Open sidebar"] {
+        display: none !important;
+    }
+    /* Force sidebar open even if browser state says collapsed */
+    section[data-testid="stSidebar"] {
+        min-width: 280px !important;
+        width: 280px !important;
+        transform: translateX(0) !important;
+        visibility: visible !important;
+    }
+
     /* Sidebar section labels */
     .sb-label {
         font-family: 'JetBrains Mono', monospace;
