@@ -816,7 +816,13 @@ if trades is None:
     else:
         st.stop()
 
-st.caption(f"Data source: **{source_name}** · {len(trades):,} trades loaded · Updated daily")
+date_min_str = trades["transaction_date"].min().strftime("%b %d, %Y")
+date_max_str = trades["transaction_date"].max().strftime("%b %d, %Y")
+st.caption(
+    f"Data source: **{source_name}** · {len(trades):,} trades "
+    f"(from {date_min_str} to {date_max_str}) · Updated daily · "
+    f"Full history available on higher Quiver tiers"
+)
 
 # ===================================================================
 # SIDEBAR CONTROLS
@@ -846,8 +852,8 @@ selected_politician = st.sidebar.selectbox(
     "Politician",
     ordered,
     index=default_idx,
-    format_func=lambda p: f"{p} ({trade_counts[p]} trades)",
 )
+st.sidebar.caption(f"{trade_counts[selected_politician]} trades in dataset")
 
 # Show data coverage info
 date_min = trades["transaction_date"].min().date()
@@ -936,21 +942,76 @@ st.caption(
 pol_r = stats["politician_return"]
 ret_r = stats["retail_return"]
 gap = stats["alpha_gap"]
+avg_lag = stats["avg_lag_days"]
+spy_r = spy_return if spy_return is not None else 0
 
-if gap > 0:
-    # Politician captured more than retail — the lag did its work
+# Four possible narrative cases:
+# 1. Politician crushed it, retail got scraps (the classic "lag exposed")
+# 2. Politician lost, retail also lost (strategy failed either way)
+# 3. Politician lost, retail actually did better (bad timing protected retail)
+# 4. Both made money, but the gap or SPY context reveals something
+if gap > 1.0:
+    # Politician captured meaningfully more — the lag did its work
     verdict_class = "verdict-lie"
     label = "// The Lag Exposed"
-    headline = f"{selected_politician} captured {pol_r:+.1f}%."
-    subline1 = f"By the time you could legally copy them, the stocks had already moved +{stats['avg_lag_alpha']:.1f}% on average."
-    subline2 = f"You got {ret_r:+.1f}%. They captured {pol_r:+.1f}%. The 45-day disclosure lag ate {gap:.1f} percentage points of alpha you could never touch."
-else:
-    # Politician's trades didn't work out either — the whole thesis was bad
+    headline = f"{selected_politician} captured {pol_r:+.1f}%. You got {ret_r:+.1f}%."
+    subline1 = (
+        f"By the time you could legally act — {avg_lag:.0f} days after their trade — "
+        f"the stocks had already moved {stats['avg_lag_alpha']:+.1f}% on average."
+    )
+    subline2 = (
+        f"The disclosure lag stole {gap:.1f} percentage points of alpha you could never touch. "
+        f"Meanwhile the S&P 500 returned {spy_r:+.1f}% to anyone who just held the index."
+    )
+elif pol_r < 0 and ret_r < 0:
+    # Both lost money
     verdict_class = "verdict-lie"
     label = "// The Strategy Failed"
-    headline = f"{selected_politician}'s own trades returned {pol_r:+.1f}%."
-    subline1 = f"You, copying them after the 45-day lag, got {ret_r:+.1f}%."
-    subline2 = f"Either way, you were behind. There was no alpha to capture."
+    headline = f"Both sides lost money on {selected_politician}'s trades."
+    subline1 = f"{selected_politician} would have returned {pol_r:+.1f}% on these picks. You, copying them, got {ret_r:+.1f}%."
+    subline2 = (
+        f"The S&P 500 returned {spy_r:+.1f}% over the same window. "
+        f"Buying the index beat copying the senator on both entry dates."
+    )
+elif ret_r > pol_r:
+    # Rare case: retail outperformed because the politician's timing was bad
+    verdict_class = "verdict-lie"
+    label = "// Bad Timing, Mixed Signal"
+    headline = f"You got {ret_r:+.1f}%. {selected_politician} would have gotten {pol_r:+.1f}%."
+    subline1 = (
+        f"In this sample, the politician's entry date was actually worse than the disclosure date — "
+        f"stocks sometimes dropped during the {avg_lag:.0f}-day blackout. You benefited from their bad timing."
+    )
+    subline2 = (
+        f"Neither outperformed the S&P 500, which returned {spy_r:+.1f}%. "
+        f"Either strategy is still worse than the index. This is why the whole premise of copying is unreliable."
+    )
+elif spy_r > max(pol_r, ret_r):
+    # Both made money but the S&P beat both
+    verdict_class = "verdict-lie"
+    label = "// The Index Still Wins"
+    headline = f"Both strategies made money. The S&P 500 made more."
+    subline1 = (
+        f"{selected_politician}'s entry: {pol_r:+.1f}%. Retail copy: {ret_r:+.1f}%. "
+        f"S&P 500 buy-and-hold: {spy_r:+.1f}%."
+    )
+    subline2 = (
+        f"You could have skipped the analysis, bought an index fund, and outperformed the trade-copy strategy "
+        f"by {spy_r - ret_r:.1f} percentage points."
+    )
+else:
+    # Politician and retail both beat the S&P (rare)
+    verdict_class = "verdict-truth"
+    label = "// Signal Present"
+    headline = f"{selected_politician}'s trades beat the market."
+    subline1 = (
+        f"{selected_politician} entry: {pol_r:+.1f}%. Retail copy: {ret_r:+.1f}%. "
+        f"S&P 500: {spy_r:+.1f}%. Both entries outperformed the index."
+    )
+    subline2 = (
+        f"Even so, the disclosure lag cost retail {gap:.1f} percentage points. "
+        f"There is signal here — but by the time you can legally trade it, most of the alpha is gone."
+    )
 
 st.markdown(f"""
 <div class="{verdict_class}">
@@ -969,64 +1030,66 @@ st.markdown('<div class="section-label">// The Gap</div>', unsafe_allow_html=Tru
 h1, h2, h3 = st.columns(3)
 with h1:
     st.metric(
-        "They Captured",
+        "Their Return",
         f"{pol_r:+.1f}%",
-        help="What the politician would have earned buying on their trade date and holding for the selected period."
+        help=f"What {selected_politician} hypothetically captured: bought on their trade date and held for {hold_days} days."
     )
 with h2:
     st.metric(
-        "You Got",
+        "Your Return",
         f"{ret_r:+.1f}%",
-        help="What a retail buyer copying them would have earned — forced to wait until the disclosure date before buying."
+        help=f"What a retail buyer copying them actually gets: bought on the disclosure date ({avg_lag:.0f} days later on average) and held for {hold_days} days."
     )
 with h3:
     st.metric(
         "The Gap",
         f"{gap:+.1f}pp",
-        help="Percentage points of return the disclosure lag stole from you. This is the structural advantage Congress has over retail."
+        help="Percentage points of return the disclosure lag stole from retail. Positive means the politician captured alpha retail never could."
     )
 
 # ===================================================================
-# SECONDARY METRICS
+# SECONDARY METRICS — 3 columns to avoid label truncation
 # ===================================================================
 st.markdown('<div class="section-label">// Detail</div>', unsafe_allow_html=True)
 
-m1, m2, m3, m4 = st.columns(4)
+m1, m2, m3 = st.columns(3)
 with m1:
-    st.metric("Their Win Rate", f"{stats['pol_win_rate']:.0f}%")
+    st.metric(
+        "Their Win Rate",
+        f"{stats['pol_win_rate']:.0f}%",
+        help=f"Percentage of {selected_politician}'s {stats['trades']} trades that closed profitably when entered on their trade date."
+    )
 with m2:
-    st.metric("Your Win Rate", f"{stats['retail_win_rate']:.0f}%")
+    st.metric(
+        "Your Win Rate",
+        f"{stats['retail_win_rate']:.0f}%",
+        help=f"Percentage of those same trades that closed profitably when entered on the disclosure date."
+    )
 with m3:
-    st.metric("S&P 500", f"{spy_return:+.1f}%" if spy_return else "N/A",
-              help="Simple buy-and-hold on SPY over the same window. Did nothing, beat the trade-copier.")
-with m4:
-    st.metric("Trades Analyzed", f"{stats['trades']}")
+    st.metric(
+        "S&P 500",
+        f"{spy_r:+.1f}%" if spy_return is not None else "N/A",
+        help="Simple buy-and-hold on SPY over the same window. The benchmark retail could always have chosen instead."
+    )
 
-m5, m6, m7, m8 = st.columns(4)
+m4, m5, m6 = st.columns(3)
+with m4:
+    st.metric(
+        "Disclosure Lag",
+        f"{avg_lag:.0f} days",
+        help="Average days between a trade and its required disclosure under the STOCK Act. Law allows up to 45."
+    )
 with m5:
     st.metric(
-        "Avg Disclosure Lag",
-        f"{stats['avg_lag_days']:.0f} days",
-        help="The average number of days between when the politician bought and when the public was legally allowed to know."
+        "Blackout Move",
+        f"{stats['avg_lag_alpha']:+.1f}%",
+        help="Average price change during the disclosure blackout — time retail had zero legal access to the information."
     )
 with m6:
     st.metric(
-        "Avg Lag-Period Alpha",
-        f"{stats['avg_lag_alpha']:+.1f}%",
-        help="On average, how much the stock moved during the blackout period. This is pure alpha retail had zero access to."
-    )
-with m7:
-    st.metric(
-        "Stocks Gone by Disclosure",
+        "Pre-Disclosure Runs",
         f"{stats['lag_blackout_rate']:.0f}%",
-        help="Percentage of trades where the stock was already up by the time retail could buy. The best moves were already over."
-    )
-with m8:
-    median_lag = stats['median_lag_alpha']
-    st.metric(
-        "Median Lag-Period Move",
-        f"{median_lag:+.1f}%",
-        help="The typical price move during the blackout. Half of stocks moved more, half less."
+        help="Percentage of trades where the stock had already moved up before retail could legally act. The best entries were gone."
     )
 
 # ===================================================================
@@ -1057,13 +1120,12 @@ fig.add_trace(go.Scatter(
     x=retail_eq["date"], y=retail_eq["equity"],
     mode="lines", name="Retail copy (disclosure date entry)",
     line=dict(color="#ff4d4d", width=3),
-    fill="tonexty", fillcolor="rgba(255,77,77,0.06)",
 ))
 if spy_df is not None:
     fig.add_trace(go.Scatter(
         x=spy_df["date"], y=spy_df["equity"],
         mode="lines", name="S&P 500 (buy & hold)",
-        line=dict(color="#8a8a8a", width=2, dash="dot"),
+        line=dict(color="#b0b0b0", width=2, dash="dot"),
     ))
 
 fig.update_layout(
@@ -1074,7 +1136,7 @@ fig.update_layout(
     xaxis=dict(gridcolor="rgba(255,255,255,0.05)", title="", showspikes=True),
     yaxis=dict(gridcolor="rgba(255,255,255,0.05)", title="Portfolio Value (Starting $100)"),
     height=500,
-    margin=dict(l=40, r=20, t=20, b=40),
+    margin=dict(l=50, r=60, t=20, b=40),
     legend=dict(
         bgcolor="rgba(0,0,0,0.5)",
         bordercolor="rgba(255,255,255,0.08)",
@@ -1086,8 +1148,13 @@ fig.update_layout(
         x=0,
     ),
 )
-fig.add_hline(y=100, line_dash="dash", line_color="rgba(255,255,255,0.15)",
-              annotation_text="Starting Capital", annotation_position="right")
+fig.add_hline(
+    y=100,
+    line_dash="dash",
+    line_color="rgba(255,255,255,0.15)",
+    annotation_text="$100 start",
+    annotation_position="top left",
+)
 
 st.plotly_chart(fig, use_container_width=True)
 
@@ -1117,32 +1184,42 @@ with st.expander(f"Trade-by-trade breakdown ({len(bt)} trades) — see exactly w
     )
 
 # ===================================================================
-# BIGGEST GAPS — where the lag hurt most
+# WORST LAG DAMAGE — single merged table
 # ===================================================================
-w_col, l_col = st.columns(2)
-with w_col:
-    st.markdown('<div class="section-label" style="margin-top: 32px;">// Worst Lag Gaps</div>', unsafe_allow_html=True)
-    st.caption("Trades where the disclosure blackout stole the most alpha")
-    worst_gaps = bt.nlargest(5, "alpha_gap")[["ticker", "trade_date", "lag_days", "alpha_gap"]]
-    worst_gaps.columns = ["Ticker", "Trade Date", "Lag Days", "Gap (pp)"]
-    st.dataframe(worst_gaps, use_container_width=True, hide_index=True,
-                 column_config={"Gap (pp)": st.column_config.NumberColumn(format="%+.2f")})
+st.markdown('<div class="section-label" style="margin-top: 32px;">// Where The Lag Hurt Most</div>', unsafe_allow_html=True)
+st.caption("The trades where the disclosure blackout created the biggest gap between what they captured and what retail got")
 
-with l_col:
-    st.markdown('<div class="section-label" style="margin-top: 32px;">// Biggest Lag-Period Moves</div>', unsafe_allow_html=True)
-    st.caption("Stocks that surged during the 45-day blackout window")
-    biggest_blackouts = bt.nlargest(5, "lag_alpha")[["ticker", "trade_date", "lag_days", "lag_alpha"]]
-    biggest_blackouts.columns = ["Ticker", "Trade Date", "Lag Days", "Blackout %"]
-    st.dataframe(biggest_blackouts, use_container_width=True, hide_index=True,
-                 column_config={"Blackout %": st.column_config.NumberColumn(format="%+.2f%%")})
+top_damage = bt.nlargest(8, "alpha_gap")[[
+    "ticker", "trade_date", "disclosure_date", "lag_days",
+    "pol_return", "retail_return", "alpha_gap", "lag_alpha"
+]].copy()
+top_damage.columns = [
+    "Ticker", "Trade Date", "Disclosed", "Lag (days)",
+    "Their %", "Your %", "Gap (pp)", "Blackout %"
+]
+st.dataframe(
+    top_damage,
+    use_container_width=True,
+    hide_index=True,
+    column_config={
+        "Their %": st.column_config.NumberColumn(format="%+.2f%%",
+            help="What the politician's entry would have captured"),
+        "Your %": st.column_config.NumberColumn(format="%+.2f%%",
+            help="What you got copying on the disclosure date"),
+        "Gap (pp)": st.column_config.NumberColumn(format="%+.2f",
+            help="Percentage points the lag stole from you"),
+        "Blackout %": st.column_config.NumberColumn(format="%+.2f%%",
+            help="Pure price move during the blackout window"),
+    }
+)
 
 # ===================================================================
 # FOOTER
 # ===================================================================
-st.markdown("""
+st.markdown(f"""
 <div class="footer-card">
     <div class="footer-method">
-        <strong>Methodology.</strong> For every purchase disclosed by the selected politician since 2020, this tool simulates a retail buyer acquiring the same stock on the disclosure date — the earliest a non-member could legally have acted — and holding for the selected period. Sales are excluded because retail rarely shorts. The S&P 500 benchmark is a simple buy-and-hold over the same window.
+        <strong>Methodology.</strong> For every purchase disclosed by the selected politician in the dataset, this tool simulates two entries: one on the politician's actual trade date (what they captured), and one on the disclosure date — the earliest a non-member could legally have known about the trade (what retail actually gets). Both hold for the same period. Sales are excluded because retail rarely shorts. The S&amp;P 500 benchmark is a simple buy-and-hold over the same window. Dataset currently covers {trades["transaction_date"].min().strftime("%b %Y")} to {trades["transaction_date"].max().strftime("%b %Y")} via the Quiver Quantitative live endpoint — older historical trades require a paid data tier.
     </div>
     <div class="footer-brand">
         Built by <a href="https://thefifthsignal.com" target="_blank">The Fifth Signal</a> &nbsp;·&nbsp; Data from public STOCK Act disclosures via Quiver Quantitative
