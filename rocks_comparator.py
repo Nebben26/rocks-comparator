@@ -568,103 +568,177 @@ def get_price_history(ticker, start, end):
 # BACKTEST LOGIC
 # ===================================================================
 
-def backtest_copy_politician(trades_df, hold_days=90):
-    """
-    For each disclosed trade, simulate what a retail buyer would have
-    experienced if they bought at the disclosure date (the only date
-    they could realistically have acted) and held for hold_days.
+def get_spy_benchmark(start, end):
+    """Returns SPY total return between two dates."""
+    prices = get_price_history("SPY", start, end + timedelta(days=5))
+    if prices is None or len(prices) < 2:
+        return None
+    return float((prices.iloc[-1] / prices.iloc[0] - 1) * 100)
 
-    Returns: list of dicts with per-trade results.
+
+def backtest_with_lag_analysis(trades_df, hold_days=90):
+    """
+    For every disclosed purchase, compute three returns:
+
+    1. POLITICIAN'S return: bought at transaction_date, held hold_days.
+       (What they plausibly captured if they held for this period.)
+    2. RETAIL copy return: bought at disclosure_date, held hold_days.
+       (What YOU actually get by copying them.)
+    3. LAG ALPHA: price change from transaction_date to disclosure_date.
+       (Pure alpha stolen by the disclosure blackout — inaccessible to retail.)
+
+    The gap between #1 and #2 is the structural advantage of trading
+    information that is embargoed by law for 45 days.
+
+    Returns DataFrame with per-trade results.
     """
     results = []
     today = datetime.now().date()
 
     for _, row in trades_df.iterrows():
         ticker = row["ticker"]
+        trade_date = row["transaction_date"].date() if pd.notna(row["transaction_date"]) else None
         disc_date = row["disclosure_date"].date() if pd.notna(row["disclosure_date"]) else None
-        if disc_date is None:
+        if not trade_date or not disc_date:
             continue
         if disc_date > today:
             continue
 
-        exit_date = disc_date + timedelta(days=hold_days)
-        if exit_date > today:
-            exit_date = today
-
-        # Only model purchases. Sales would require shorting which retail rarely does.
+        # Skip sales — retail rarely shorts
         if "sale" in str(row.get("type", "")).lower():
             continue
 
-        prices = get_price_history(
-            ticker,
-            disc_date - timedelta(days=5),
-            exit_date + timedelta(days=5),
-        )
+        # Exit dates: both parties hold hold_days from their respective entries
+        pol_exit = trade_date + timedelta(days=hold_days)
+        retail_exit = disc_date + timedelta(days=hold_days)
+        if pol_exit > today:
+            pol_exit = today
+        if retail_exit > today:
+            retail_exit = today
+
+        # Pull prices covering the full range
+        price_start = min(trade_date, disc_date) - timedelta(days=5)
+        price_end = max(pol_exit, retail_exit) + timedelta(days=5)
+        prices = get_price_history(ticker, price_start, price_end)
         if prices is None or len(prices) < 2:
             continue
 
-        # Find closest entry / exit trading days
-        entry_price = prices[prices.index.date >= disc_date].iloc[0] if any(prices.index.date >= disc_date) else None
-        exit_prices = prices[prices.index.date <= exit_date]
-        exit_price = exit_prices.iloc[-1] if len(exit_prices) > 0 else None
+        def price_at_or_after(d):
+            m = prices[prices.index.date >= d]
+            return float(m.iloc[0]) if len(m) > 0 else None
 
-        if entry_price is None or exit_price is None or entry_price == 0:
+        def price_at_or_before(d):
+            m = prices[prices.index.date <= d]
+            return float(m.iloc[-1]) if len(m) > 0 else None
+
+        pol_entry = price_at_or_after(trade_date)
+        disc_price = price_at_or_after(disc_date)
+        pol_exit_price = price_at_or_before(pol_exit)
+        retail_exit_price = price_at_or_before(retail_exit)
+
+        if any(p is None or p == 0 for p in [pol_entry, disc_price, pol_exit_price, retail_exit_price]):
             continue
 
-        ret = (exit_price / entry_price - 1) * 100
+        pol_return = (pol_exit_price / pol_entry - 1) * 100
+        retail_return = (retail_exit_price / disc_price - 1) * 100
+        lag_alpha = (disc_price / pol_entry - 1) * 100  # price move during the blackout
+        alpha_gap = pol_return - retail_return
 
         results.append({
             "politician": row["politician"],
             "ticker": ticker,
-            "transaction_date": row["transaction_date"].date(),
+            "trade_date": trade_date,
             "disclosure_date": disc_date,
-            "exit_date": exit_date,
-            "entry_price": round(float(entry_price), 2),
-            "exit_price": round(float(exit_price), 2),
-            "return_pct": round(float(ret), 2),
+            "lag_days": (disc_date - trade_date).days,
+            "pol_entry": round(pol_entry, 2),
+            "disc_price": round(disc_price, 2),
+            "retail_exit_price": round(retail_exit_price, 2),
+            "pol_return": round(pol_return, 2),
+            "retail_return": round(retail_return, 2),
+            "lag_alpha": round(lag_alpha, 2),
+            "alpha_gap": round(alpha_gap, 2),
         })
 
     return pd.DataFrame(results)
 
 
-def get_spy_benchmark(start, end):
-    """Returns SPY total return between two dates."""
-    prices = get_price_history("SPY", start, end + timedelta(days=5))
-    if prices is None or len(prices) < 2:
-        return None
-    return (prices.iloc[-1] / prices.iloc[0] - 1) * 100
-
-
-def compute_portfolio_stats(bt_results):
-    """Summary stats from per-trade results."""
+def compute_lag_stats(bt_results):
+    """Aggregate the per-trade results into portfolio-level stats."""
     if len(bt_results) == 0:
         return None
 
-    returns = bt_results["return_pct"]
-    wins = (returns > 0).sum()
-    losses = (returns <= 0).sum()
+    bt_sorted = bt_results.sort_values("trade_date").reset_index(drop=True)
+    n = len(bt_sorted)
+
+    # Equal-weighted compounded portfolio returns for both strategies
+    pol_total = 100.0
+    retail_total = 100.0
+    pol_equity = []
+    retail_equity = []
+    for _, t in bt_sorted.iterrows():
+        pol_total *= (1 + t["pol_return"] / 100) ** (1 / n)
+        retail_total *= (1 + t["retail_return"] / 100) ** (1 / n)
+        pol_equity.append({"date": t["trade_date"], "equity": pol_total})
+        retail_equity.append({"date": t["disclosure_date"], "equity": retail_total})
+
+    pol_return_pct = pol_total - 100
+    retail_return_pct = retail_total - 100
+    alpha_gap_pct = pol_return_pct - retail_return_pct
+
+    # How many trades had the price already move up before retail could act?
+    lag_blackout_hits = int((bt_sorted["lag_alpha"] > 0).sum())
+    lag_blackout_rate = (lag_blackout_hits / n) * 100
+
+    return {
+        "trades": n,
+        "politician_return": round(pol_return_pct, 2),
+        "retail_return": round(retail_return_pct, 2),
+        "alpha_gap": round(alpha_gap_pct, 2),
+        "avg_lag_days": round(float(bt_sorted["lag_days"].mean()), 1),
+        "avg_lag_alpha": round(float(bt_sorted["lag_alpha"].mean()), 2),
+        "median_lag_alpha": round(float(bt_sorted["lag_alpha"].median()), 2),
+        "lag_blackout_rate": round(lag_blackout_rate, 1),
+        "pol_win_rate": round((bt_sorted["pol_return"] > 0).mean() * 100, 1),
+        "retail_win_rate": round((bt_sorted["retail_return"] > 0).mean() * 100, 1),
+        "pol_equity_curve": pd.DataFrame(pol_equity),
+        "retail_equity_curve": pd.DataFrame(retail_equity),
+    }
+
+
+# Keep the old backtest function for backward compatibility but route to new one
+def backtest_copy_politician(trades_df, hold_days=90):
+    return backtest_with_lag_analysis(trades_df, hold_days=hold_days)
+
+
+def compute_portfolio_stats(bt_results):
+    """Legacy stats for compatibility. Prefer compute_lag_stats for new UI."""
+    if len(bt_results) == 0:
+        return None
+    returns = bt_results["retail_return"] if "retail_return" in bt_results.columns else bt_results.get("return_pct", pd.Series([]))
+    if len(returns) == 0:
+        return None
+    wins = int((returns > 0).sum())
+    losses = int((returns <= 0).sum())
     total_trades = len(returns)
     win_rate = (wins / total_trades * 100) if total_trades > 0 else 0
-    avg_return = returns.mean()
-    median_return = returns.median()
+    avg_return = float(returns.mean())
+    median_return = float(returns.median())
 
-    # Equal-weighted portfolio equity curve
-    bt_sorted = bt_results.sort_values("disclosure_date").reset_index(drop=True)
+    bt_sorted = bt_results.sort_values("disclosure_date" if "disclosure_date" in bt_results.columns else "trade_date").reset_index(drop=True)
     cumulative = 100.0
     equity = []
-    # Simplified: each trade represents a 1/N allocation sequentially — compound
     for _, t in bt_sorted.iterrows():
-        cumulative *= (1 + t["return_pct"] / 100) ** (1 / total_trades)
-        equity.append({"date": t["exit_date"], "equity": cumulative})
+        r = t.get("retail_return", t.get("return_pct", 0))
+        cumulative *= (1 + r / 100) ** (1 / total_trades)
+        exit_col = "disclosure_date" if "disclosure_date" in bt_results.columns else "trade_date"
+        equity.append({"date": t[exit_col], "equity": cumulative})
     equity_df = pd.DataFrame(equity)
-
     total_return = cumulative - 100
 
-    # Max drawdown from equity curve
     if len(equity_df) > 0:
         peak = equity_df["equity"].cummax()
         dd = (equity_df["equity"] / peak - 1) * 100
-        max_dd = dd.min()
+        max_dd = float(dd.min())
     else:
         max_dd = 0
 
@@ -827,7 +901,7 @@ bt_chunks = []
 chunk_size = max(1, len(filtered) // 20)
 for i in range(0, len(filtered), chunk_size):
     chunk = filtered.iloc[i:i+chunk_size]
-    r = backtest_copy_politician(chunk, hold_days=hold_days)
+    r = backtest_with_lag_analysis(chunk, hold_days=hold_days)
     bt_chunks.append(r)
     progress.progress(min(1.0, (i + chunk_size) / len(filtered)),
                       text=f"Running backtest... ({min(i+chunk_size, len(filtered))}/{len(filtered)} trades)")
@@ -839,111 +913,156 @@ if len(bt) == 0:
     st.warning("No trades could be priced (tickers may be delisted or outside yfinance coverage).")
     st.stop()
 
-stats = compute_portfolio_stats(bt)
+stats = compute_lag_stats(bt)
 
 # SPY benchmark over the same period
-bt_start = bt["disclosure_date"].min()
-bt_end = bt["exit_date"].max()
-spy_return = get_spy_benchmark(bt_start, bt_end)
+bt_start = bt["trade_date"].min()
+bt_end_pol = bt["trade_date"].max() + timedelta(days=hold_days)
+bt_end_retail = bt["disclosure_date"].max() + timedelta(days=hold_days)
+spy_return = get_spy_benchmark(bt_start, bt_end_retail)
 
 # ===================================================================
-# VERDICT HEADLINE
+# VERDICT HEADLINE — THE LAG NARRATIVE
 # ===================================================================
 st.markdown("---")
 st.markdown(f"## Copying {selected_politician}")
-st.caption(f"Simulating {hold_days}-day holds entered on the disclosure date of every trade")
+st.caption(
+    f"{stats['trades']} disclosed purchases · {hold_days}-day hold period · "
+    f"Avg disclosure lag: {stats['avg_lag_days']:.0f} days · "
+    f"{stats['lag_blackout_rate']:.0f}% of stocks moved up before you could act"
+)
 
-if stats["total_return"] < 0 or (spy_return and stats["total_return"] < spy_return):
-    delta_text = ""
-    if stats['total_return'] < 0 and spy_return:
-        delta_text = f"Lost money while the S&P 500 returned {spy_return:+.1f}%"
-    elif stats['total_return'] < 0:
-        delta_text = "Lost money"
-    elif spy_return:
-        delta_text = f"Underperformed the S&P 500 by {spy_return - stats['total_return']:.1f} percentage points"
+# Build the verdict narrative from the lag data
+pol_r = stats["politician_return"]
+ret_r = stats["retail_return"]
+gap = stats["alpha_gap"]
 
-    st.markdown(f"""
-    <div class="verdict-lie">
-        <div class="verdict-lie-label">// Verdict</div>
-        <div class="verdict-lie-headline">
-            Return: {stats['total_return']:+.1f}%<br>
-            <span style="font-size: 16px; font-weight: 500; color: #8a8a8a;">{delta_text}</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+if gap > 0:
+    # Politician captured more than retail — the lag did its work
+    verdict_class = "verdict-lie"
+    label = "// The Lag Exposed"
+    headline = f"{selected_politician} captured {pol_r:+.1f}%."
+    subline1 = f"By the time you could legally copy them, the stocks had already moved +{stats['avg_lag_alpha']:.1f}% on average."
+    subline2 = f"You got {ret_r:+.1f}%. They captured {pol_r:+.1f}%. The 45-day disclosure lag ate {gap:.1f} percentage points of alpha you could never touch."
 else:
-    beat_text = f"Beat the S&P 500 by {stats['total_return'] - spy_return:.1f} percentage points" if spy_return and stats['total_return'] > spy_return else "Matched the S&P 500"
-    st.markdown(f"""
-    <div class="verdict-truth">
-        <div class="verdict-truth-label">// Verdict</div>
-        <div class="verdict-truth-headline">
-            Return: {stats['total_return']:+.1f}%<br>
-            <span style="font-size: 16px; font-weight: 500; color: #8a8a8a;">{beat_text}</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Politician's trades didn't work out either — the whole thesis was bad
+    verdict_class = "verdict-lie"
+    label = "// The Strategy Failed"
+    headline = f"{selected_politician}'s own trades returned {pol_r:+.1f}%."
+    subline1 = f"You, copying them after the 45-day lag, got {ret_r:+.1f}%."
+    subline2 = f"Either way, you were behind. There was no alpha to capture."
+
+st.markdown(f"""
+<div class="{verdict_class}">
+    <div class="verdict-lie-label">{label}</div>
+    <div class="verdict-lie-headline">{headline}</div>
+    <div style="margin-top: 16px; font-size: 15px; line-height: 1.55; color: #a8a8a8;">{subline1}</div>
+    <div style="margin-top: 10px; font-size: 15px; line-height: 1.55; color: #e5e5e5;">{subline2}</div>
+</div>
+""", unsafe_allow_html=True)
 
 # ===================================================================
-# METRICS
+# HERO METRICS — the three-way comparison
 # ===================================================================
-st.markdown('<div class="section-label">// Performance Metrics</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-label">// The Gap</div>', unsafe_allow_html=True)
+
+h1, h2, h3 = st.columns(3)
+with h1:
+    st.metric(
+        "They Captured",
+        f"{pol_r:+.1f}%",
+        help="What the politician would have earned buying on their trade date and holding for the selected period."
+    )
+with h2:
+    st.metric(
+        "You Got",
+        f"{ret_r:+.1f}%",
+        help="What a retail buyer copying them would have earned — forced to wait until the disclosure date before buying."
+    )
+with h3:
+    st.metric(
+        "The Gap",
+        f"{gap:+.1f}pp",
+        help="Percentage points of return the disclosure lag stole from you. This is the structural advantage Congress has over retail."
+    )
+
+# ===================================================================
+# SECONDARY METRICS
+# ===================================================================
+st.markdown('<div class="section-label">// Detail</div>', unsafe_allow_html=True)
 
 m1, m2, m3, m4 = st.columns(4)
 with m1:
-    st.metric("Total Return", f"{stats['total_return']:+.1f}%",
-              delta=f"{stats['total_return'] - spy_return:+.1f}pp vs S&P" if spy_return else None)
+    st.metric("Their Win Rate", f"{stats['pol_win_rate']:.0f}%")
 with m2:
-    st.metric("Win Rate", f"{stats['win_rate']}%",
-              help=f"{stats['wins']} winners / {stats['losses']} losers")
+    st.metric("Your Win Rate", f"{stats['retail_win_rate']:.0f}%")
 with m3:
-    st.metric("Avg Trade", f"{stats['avg_return']:+.2f}%")
+    st.metric("S&P 500", f"{spy_return:+.1f}%" if spy_return else "N/A",
+              help="Simple buy-and-hold on SPY over the same window. Did nothing, beat the trade-copier.")
 with m4:
-    st.metric("Max Drawdown", f"{stats['max_drawdown']:.1f}%")
+    st.metric("Trades Analyzed", f"{stats['trades']}")
 
 m5, m6, m7, m8 = st.columns(4)
 with m5:
-    st.metric("Trades Backtested", f"{stats['trades']}")
+    st.metric(
+        "Avg Disclosure Lag",
+        f"{stats['avg_lag_days']:.0f} days",
+        help="The average number of days between when the politician bought and when the public was legally allowed to know."
+    )
 with m6:
-    st.metric("S&P 500 Benchmark", f"{spy_return:+.1f}%" if spy_return else "N/A",
-              help="Total return on SPY over the same date range")
+    st.metric(
+        "Avg Lag-Period Alpha",
+        f"{stats['avg_lag_alpha']:+.1f}%",
+        help="On average, how much the stock moved during the blackout period. This is pure alpha retail had zero access to."
+    )
 with m7:
-    exit_liq_score = max(0, min(100, int(50 + (spy_return - stats['total_return']) if spy_return else 50)))
-    st.metric("Exit Liquidity Score", f"{exit_liq_score}/100",
-              help="Higher = more likely retail was exit liquidity. Based on underperformance vs S&P.")
+    st.metric(
+        "Stocks Gone by Disclosure",
+        f"{stats['lag_blackout_rate']:.0f}%",
+        help="Percentage of trades where the stock was already up by the time retail could buy. The best moves were already over."
+    )
 with m8:
-    st.metric("Median Trade", f"{stats['median_return']:+.2f}%")
+    median_lag = stats['median_lag_alpha']
+    st.metric(
+        "Median Lag-Period Move",
+        f"{median_lag:+.1f}%",
+        help="The typical price move during the blackout. Half of stocks moved more, half less."
+    )
 
 # ===================================================================
-# EQUITY CURVE
+# EQUITY CURVE — three lines
 # ===================================================================
 st.markdown('<div class="section-label">// Equity Curve</div>', unsafe_allow_html=True)
+st.caption("$100 invested. Green: if you could have traded on the politician's schedule. Red: what you actually got. Dotted gray: just holding the S&P 500.")
 
-equity_df = stats["equity_curve"]
+pol_eq = stats["pol_equity_curve"]
+retail_eq = stats["retail_equity_curve"]
 
-# Build SPY curve starting at same base
+spy_df = None
 if spy_return is not None:
-    spy_prices = get_price_history("SPY", bt_start, bt_end + timedelta(days=5))
+    spy_prices = get_price_history("SPY", bt_start, bt_end_retail + timedelta(days=5))
     if spy_prices is not None:
         spy_df = pd.DataFrame({
             "date": spy_prices.index.date,
             "equity": (spy_prices.values / spy_prices.iloc[0]) * 100
         })
-    else:
-        spy_df = None
-else:
-    spy_df = None
 
 fig = go.Figure()
 fig.add_trace(go.Scatter(
-    x=equity_df["date"], y=equity_df["equity"],
-    mode="lines", name=f"Copy {selected_politician}",
+    x=pol_eq["date"], y=pol_eq["equity"],
+    mode="lines", name=f"{selected_politician} (trade date entry)",
+    line=dict(color="#00ff9f", width=3),
+))
+fig.add_trace(go.Scatter(
+    x=retail_eq["date"], y=retail_eq["equity"],
+    mode="lines", name="Retail copy (disclosure date entry)",
     line=dict(color="#ff4d4d", width=3),
-    fill="tozeroy", fillcolor="rgba(255,77,77,0.05)",
+    fill="tonexty", fillcolor="rgba(255,77,77,0.06)",
 ))
 if spy_df is not None:
     fig.add_trace(go.Scatter(
         x=spy_df["date"], y=spy_df["equity"],
-        mode="lines", name="S&P 500 (Buy & Hold)",
+        mode="lines", name="S&P 500 (buy & hold)",
         line=dict(color="#8a8a8a", width=2, dash="dot"),
     ))
 
@@ -960,9 +1079,13 @@ fig.update_layout(
         bgcolor="rgba(0,0,0,0.5)",
         bordercolor="rgba(255,255,255,0.08)",
         borderwidth=1,
+        orientation="h",
+        yanchor="bottom",
+        y=1.02,
+        xanchor="left",
+        x=0,
     ),
 )
-# Add $100 baseline
 fig.add_hline(y=100, line_dash="dash", line_color="rgba(255,255,255,0.15)",
               annotation_text="Starting Capital", annotation_position="right")
 
@@ -971,39 +1094,47 @@ st.plotly_chart(fig, use_container_width=True)
 # ===================================================================
 # TRADE-BY-TRADE BREAKDOWN
 # ===================================================================
-with st.expander(f"Trade-by-trade breakdown ({len(bt)} trades)"):
-    display_bt = bt.copy()
-    display_bt = display_bt.sort_values("disclosure_date", ascending=False)
-    display_bt.columns = ["Politician", "Ticker", "Trade Date", "Disclosure Date",
-                          "Exit Date", "Entry $", "Exit $", "Return %"]
+with st.expander(f"Trade-by-trade breakdown ({len(bt)} trades) — see exactly where the lag ate your alpha"):
+    display_bt = bt[["ticker", "trade_date", "disclosure_date", "lag_days",
+                     "pol_entry", "disc_price", "retail_exit_price",
+                     "pol_return", "retail_return", "lag_alpha", "alpha_gap"]].copy()
+    display_bt = display_bt.sort_values("trade_date", ascending=False)
+    display_bt.columns = ["Ticker", "Trade Date", "Disclosed", "Lag (days)",
+                          "Entry $", "Disclosure $", "Exit $",
+                          "Their %", "Your %", "Lag Alpha %", "Gap (pp)"]
     st.dataframe(
         display_bt,
         use_container_width=True,
         hide_index=True,
         column_config={
-            "Return %": st.column_config.NumberColumn(
-                format="%+.2f%%",
-            ),
+            "Their %": st.column_config.NumberColumn(format="%+.2f%%"),
+            "Your %": st.column_config.NumberColumn(format="%+.2f%%"),
+            "Lag Alpha %": st.column_config.NumberColumn(format="%+.2f%%",
+                help="How much the stock moved during the blackout period"),
+            "Gap (pp)": st.column_config.NumberColumn(format="%+.2f",
+                help="Percentage points of return the politician captured over retail"),
         }
     )
 
 # ===================================================================
-# BIGGEST WINNERS + LOSERS
+# BIGGEST GAPS — where the lag hurt most
 # ===================================================================
 w_col, l_col = st.columns(2)
 with w_col:
-    st.markdown('<div class="section-label" style="margin-top: 32px;">// Biggest Winners</div>', unsafe_allow_html=True)
-    winners = bt.nlargest(5, "return_pct")[["ticker", "disclosure_date", "return_pct"]]
-    winners.columns = ["Ticker", "Disclosed", "Return %"]
-    st.dataframe(winners, use_container_width=True, hide_index=True,
-                 column_config={"Return %": st.column_config.NumberColumn(format="%+.2f%%")})
+    st.markdown('<div class="section-label" style="margin-top: 32px;">// Worst Lag Gaps</div>', unsafe_allow_html=True)
+    st.caption("Trades where the disclosure blackout stole the most alpha")
+    worst_gaps = bt.nlargest(5, "alpha_gap")[["ticker", "trade_date", "lag_days", "alpha_gap"]]
+    worst_gaps.columns = ["Ticker", "Trade Date", "Lag Days", "Gap (pp)"]
+    st.dataframe(worst_gaps, use_container_width=True, hide_index=True,
+                 column_config={"Gap (pp)": st.column_config.NumberColumn(format="%+.2f")})
 
 with l_col:
-    st.markdown('<div class="section-label" style="margin-top: 32px;">// Biggest Losers</div>', unsafe_allow_html=True)
-    losers = bt.nsmallest(5, "return_pct")[["ticker", "disclosure_date", "return_pct"]]
-    losers.columns = ["Ticker", "Disclosed", "Return %"]
-    st.dataframe(losers, use_container_width=True, hide_index=True,
-                 column_config={"Return %": st.column_config.NumberColumn(format="%+.2f%%")})
+    st.markdown('<div class="section-label" style="margin-top: 32px;">// Biggest Lag-Period Moves</div>', unsafe_allow_html=True)
+    st.caption("Stocks that surged during the 45-day blackout window")
+    biggest_blackouts = bt.nlargest(5, "lag_alpha")[["ticker", "trade_date", "lag_days", "lag_alpha"]]
+    biggest_blackouts.columns = ["Ticker", "Trade Date", "Lag Days", "Blackout %"]
+    st.dataframe(biggest_blackouts, use_container_width=True, hide_index=True,
+                 column_config={"Blackout %": st.column_config.NumberColumn(format="%+.2f%%")})
 
 # ===================================================================
 # FOOTER
