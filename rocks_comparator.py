@@ -1,14 +1,7 @@
 """
 THE ROCKS THROWN COMPARATOR · Signal 05
-========================================
-Powered by The Fifth Signal
-
-Attacks the congressional copy-trading lie with real data.
-Backend unchanged. UI rebuilt for one-screenshot comprehension.
-
-Run locally:
-    pip install -r requirements.txt
-    streamlit run rocks_comparator.py
+Backend preserved from the original. Layout rewritten to the user's scaffold:
+left = politician picker; right = one verdict line + one chart.
 """
 
 import streamlit as st
@@ -19,477 +12,318 @@ import requests
 from datetime import datetime, timedelta
 from urllib.parse import quote as urlquote
 
-# ===================================================================
-# PAGE CONFIG
-# ===================================================================
+
 st.set_page_config(
-    page_title="Signal 05 · Rocks Thrown Comparator · The Fifth Signal",
+    page_title="Signal 05 · Congressional Conflict Score",
     page_icon="📡",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
+
 # ===================================================================
-# STYLING — brand tokens from thecapitoldossier.com/index.html
+# CSS
 # ===================================================================
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
 
-/* --- CORE --- */
 .stApp {
-    background-color: #000000;
+    background: #000000;
     color: #ffffff;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
-.main > div { max-width: 1240px; padding-top: 1rem !important; padding-bottom: 3rem !important; }
-[data-testid="stHeader"] { background: #000; height: 0; }
-#MainMenu, footer, header { visibility: hidden; }
+.main .block-container {
+    max-width: 1400px;
+    padding: 1rem 2rem 3rem 2rem;
+}
+
+/* Kill Streamlit chrome */
+#MainMenu, footer, header { visibility: hidden !important; height: 0 !important; }
+[data-testid="stHeader"] { display: none !important; }
+[data-testid="stToolbar"] { display: none !important; }
 [data-testid="stStatusWidget"] { display: none !important; }
-
-/* Kill sidebar entirely — all controls are inline now */
+[data-testid="stDecoration"] { display: none !important; }
 [data-testid="stSidebar"] { display: none !important; }
-[data-testid="stSidebarCollapseButton"],
-[data-testid="collapsedControl"],
-section[data-testid="stSidebar"] { display: none !important; }
+[data-testid="stSidebarCollapseButton"] { display: none !important; }
+[data-testid="collapsedControl"] { display: none !important; }
+[data-testid="stDeployButton"] { display: none !important; }
 
-/* Brand atmosphere — grain + green scanline overlay */
-.stApp::before {
-    content: ''; position: fixed; inset: 0; pointer-events: none;
-    opacity: 0.04; z-index: 9998;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-}
-.stApp::after {
-    content: ''; position: fixed; inset: 0; pointer-events: none;
-    z-index: 9999; mix-blend-mode: overlay;
-    background: linear-gradient(180deg, transparent 0%, rgba(0,255,159,0.012) 50%, transparent 100%);
-    background-size: 100% 8px;
-}
+/* Tight column gap */
+[data-testid="stHorizontalBlock"] { gap: 1rem !important; }
 
-h1, h2, h3, h4, h5, h6 {
-    font-family: 'Space Grotesk', sans-serif !important;
-    letter-spacing: -0.025em; color: #ffffff;
-    font-weight: 700 !important;
-}
+/* Zero out Streamlit inter-element margins in columns so the panel reads as one unit */
+[data-testid="element-container"] { margin-bottom: 0 !important; }
+[data-testid="stVerticalBlockBorderWrapper"] { gap: 0 !important; }
+div[data-testid="stVerticalBlock"] { gap: 0 !important; }
 
-/* --- TOOL NAV (matches site nav) --- */
-.tnav {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 0 16px;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    flex-wrap: wrap; gap: 12px;
-}
-.tnav-left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.tnav-logo {
-    width: 26px; height: 26px; border-radius: 50%;
-    border: 1.5px solid #00ff9f; position: relative;
-    box-shadow: 0 0 10px rgba(0,255,159,0.5);
-    flex-shrink: 0;
-}
-.tnav-logo::before, .tnav-logo::after {
-    content: ''; position: absolute; border-radius: 50%;
-    border: 1px solid rgba(0,255,159,0.4);
-}
-.tnav-logo::before { inset: -5px; }
-.tnav-logo::after { inset: -10px; opacity: 0.5; }
-.tnav-name {
-    font-family: 'Space Grotesk', sans-serif;
-    font-weight: 700; font-size: 17px; letter-spacing: -0.015em;
-}
-.tnav-name em { font-style: normal; color: #00ff9f; }
-.tnav-badge {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px; font-weight: 600;
-    color: #00ff9f; letter-spacing: 0.22em; text-transform: uppercase;
-    padding: 4px 9px; border: 1px solid rgba(0,255,159,0.35);
-}
-.tnav-cta {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 12px; font-weight: 600;
-    padding: 9px 16px;
-    border: 1px solid rgba(0,255,159,0.35);
-    color: #00ff9f;
-    letter-spacing: 0.08em; text-transform: uppercase;
-    border-radius: 2px; text-decoration: none;
-    transition: all 0.3s;
-}
-.tnav-cta:hover {
-    background: #00ff9f; color: #000;
-    box-shadow: 0 0 24px rgba(0,255,159,0.55);
-}
-
-/* --- KICKER (site's section-kicker pattern) --- */
-.kicker {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px; font-weight: 600;
-    color: #00ff9f;
-    letter-spacing: 0.22em; text-transform: uppercase;
-    display: flex; align-items: center; gap: 10px;
-    margin: 32px 0 14px;
-}
-.kicker::before {
-    content: ''; width: 7px; height: 7px; border-radius: 50%;
-    background: #00ff9f; box-shadow: 0 0 8px #00ff9f;
-    animation: kpulse 1.8s ease-in-out infinite;
-}
-@keyframes kpulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-
-/* --- TOOLBAR --- */
-.tbar {
-    display: flex; gap: 14px; flex-wrap: wrap;
-    align-items: center;
-    padding: 12px 0 0;
-    margin-bottom: 8px;
-}
-.tbar-lbl {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px; color: #6a6a6a;
-    letter-spacing: 0.2em; text-transform: uppercase;
-}
-.pill-row {
+/* Header strip */
+.tool-header {
     display: flex;
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 2px; overflow: hidden;
-}
-.pill {
-    padding: 8px 14px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px; font-weight: 500;
-    color: #8a8a8a;
-    letter-spacing: 0.1em; text-transform: uppercase;
-    border-right: 1px solid rgba(255,255,255,0.08);
-    text-decoration: none;
-    transition: all 0.2s;
-    white-space: nowrap;
-}
-.pill:last-child { border-right: none; }
-.pill:hover { color: #fff; background: rgba(255,255,255,0.03); }
-.pill.active { background: rgba(0,255,159,0.08); color: #00ff9f; }
-
-/* --- POLITICIAN LEADERBOARD GRID --- */
-.pgrid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 10px;
-    margin-bottom: 4px;
-}
-.pcard {
-    background: #0a0a0a;
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 3px;
-    padding: 16px;
-    text-decoration: none; color: inherit;
-    display: block; position: relative;
-    transition: all 0.25s;
-    overflow: hidden;
-}
-.pcard::before {
-    content: ''; position: absolute; inset: 0;
-    background: radial-gradient(circle at 100% 0%, rgba(0,255,159,0.10), transparent 55%);
-    opacity: 0; pointer-events: none; transition: opacity 0.25s;
-}
-.pcard:hover {
-    border-color: rgba(0,255,159,0.35);
-    transform: translateY(-2px);
-}
-.pcard:hover::before { opacity: 1; }
-.pcard.active {
-    border-color: #00ff9f;
-    background: #050a08;
-}
-.pcard.active::before { opacity: 1; }
-.pcard.active::after {
-    content: 'ACTIVE';
-    position: absolute; top: 12px; right: 14px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 9px; font-weight: 600; color: #00ff9f;
-    letter-spacing: 0.22em;
-    padding: 2px 6px; border: 1px solid #00ff9f;
-    background: #000;
-    z-index: 2;
-}
-.pc-head {
-    display: flex; align-items: center; gap: 12px;
-    margin-bottom: 14px;
-    position: relative; z-index: 2;
-}
-.pc-avatar {
-    width: 40px; height: 40px;
-    background: #000;
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 2px;
-    font-family: 'Space Grotesk', sans-serif;
-    font-weight: 700; font-size: 12px;
-    color: #8a8a8a;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-    letter-spacing: -0.01em;
-}
-.pcard.active .pc-avatar {
-    color: #00ff9f;
-    border-color: rgba(0,255,159,0.35);
-}
-.pc-name {
-    font-family: 'Space Grotesk', sans-serif;
-    font-weight: 600; font-size: 14px; color: #fff;
-    letter-spacing: -0.01em; line-height: 1.2;
-}
-.pc-meta {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px; color: #8a8a8a;
-    letter-spacing: 0.1em; text-transform: uppercase;
-    margin-top: 3px;
-}
-.pc-stats {
-    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;
-    padding-top: 12px;
-    border-top: 1px solid rgba(255,255,255,0.06);
-    position: relative; z-index: 2;
-}
-.pc-s-lbl {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 9px; color: #4a4a4a;
-    letter-spacing: 0.15em; text-transform: uppercase;
-    margin-bottom: 3px;
-}
-.pc-s-val {
-    font-family: 'Space Grotesk', sans-serif;
-    font-weight: 700; font-size: 15px; color: #fff;
-    letter-spacing: -0.02em;
-}
-.pgrid-more {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px; color: #8a8a8a;
-    letter-spacing: 0.15em; text-transform: uppercase;
-    margin-top: 14px; padding: 12px 16px;
-    background: #0a0a0a;
-    border: 1px dashed rgba(255,255,255,0.08);
-    border-radius: 3px; text-align: center;
-}
-
-/* --- THE SCREENSHOT BLOCK --- */
-.shot {
-    background: #0a0a0a;
-    border: 1px solid rgba(0,255,159,0.35);
-    border-radius: 4px;
-    margin: 28px 0 36px;
-    position: relative;
-    overflow: hidden;
-}
-.shot::before {
-    content: ''; position: absolute;
-    top: 0; left: 0; right: 0; height: 2px;
-    background: linear-gradient(90deg, transparent, #00ff9f, transparent);
-    animation: scanLine 3s linear infinite;
-    z-index: 3;
-}
-@keyframes scanLine {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
-}
-.shot-head {
-    padding: 22px 28px;
-    display: flex; align-items: center; gap: 16px;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
-    flex-wrap: wrap;
-}
-.shot-avatar {
-    width: 52px; height: 52px;
-    background: #000; border: 1px solid rgba(0,255,159,0.35);
-    border-radius: 3px;
-    font-family: 'Space Grotesk', sans-serif;
-    font-weight: 700; font-size: 16px;
-    color: #00ff9f;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
-    letter-spacing: -0.01em;
-}
-.shot-id-name {
-    font-family: 'Space Grotesk', sans-serif;
-    font-weight: 700; font-size: 22px;
-    letter-spacing: -0.02em; color: #fff;
-}
-.shot-id-meta {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px; color: #8a8a8a;
-    letter-spacing: 0.12em; text-transform: uppercase;
-    margin-top: 5px;
-}
-.shot-stamp {
-    margin-left: auto; flex-shrink: 0;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px; font-weight: 600;
-    color: #00ff9f; letter-spacing: 0.22em;
-    padding: 6px 10px; border: 1px solid rgba(0,255,159,0.35);
-}
-.shot-nums {
-    padding: 36px 28px 20px;
-    display: grid;
-    grid-template-columns: 1fr auto 1fr auto 1fr;
-    gap: 20px; align-items: center;
-}
-.shot-n { text-align: center; }
-.shot-n-lbl {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px; color: #8a8a8a;
-    letter-spacing: 0.22em; text-transform: uppercase;
-    margin-bottom: 12px;
-}
-.shot-n-val {
-    font-family: 'Space Grotesk', sans-serif;
-    font-weight: 700;
-    font-size: 54px;
-    line-height: 0.9;
-    letter-spacing: -0.035em;
-    font-variant-numeric: tabular-nums;
-}
-.shot-n-val.good { color: #00ff9f; text-shadow: 0 0 28px rgba(0,255,159,0.55); }
-.shot-n-val.bad { color: #ff4d4d; text-shadow: 0 0 18px rgba(255,77,77,0.45); }
-.shot-n-val.big { color: #fff; font-size: 64px; }
-.shot-n-val .u {
-    font-size: 22px; color: #8a8a8a; margin-left: 2px;
-    text-shadow: none; font-weight: 500;
-}
-.shot-sep {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 20px; color: #4a4a4a;
-}
-.shot-spark { padding: 0 28px 16px; }
-.shot-spark-legend {
-    display: flex; gap: 18px; justify-content: flex-end;
-    padding-bottom: 8px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px; color: #6a6a6a;
-    letter-spacing: 0.1em;
-}
-.shot-spark-legend span { display: inline-flex; align-items: center; gap: 6px; }
-.shot-spark-legend .sw { width: 12px; height: 2px; }
-.shot-spark-legend .sw.g { background: #00ff9f; box-shadow: 0 0 4px #00ff9f; }
-.shot-spark-legend .sw.r { background: #ff4d4d; }
-.shot-verdict {
-    padding: 4px 28px 24px;
-    font-family: 'Space Grotesk', sans-serif;
-    font-weight: 500;
-    font-size: 17px; line-height: 1.42;
-    color: #e5e5e5;
-    letter-spacing: -0.005em;
-}
-.shot-verdict b { color: #fff; font-weight: 700; }
-.shot-foot {
-    padding: 12px 28px;
-    background: #000;
-    border-top: 1px solid rgba(255,255,255,0.06);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px; color: #6a6a6a;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 1rem;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.72rem;
     letter-spacing: 0.18em;
-    text-align: center;
-    display: flex; justify-content: space-between; align-items: center;
-    gap: 10px; flex-wrap: wrap;
+    text-transform: uppercase;
+    color: #8a8a8a;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding-bottom: 0.55rem;
 }
-.shot-foot a { color: #00ff9f; text-decoration: none; }
-.shot-foot-hint::before { content: '↓ '; color: #00ff9f; }
+.tool-title { color: #00ff9f; font-weight: 600; }
+.tool-meta { font-size: 0.68rem; }
 
-/* --- METRIC STRIP (inline below screenshot) --- */
-.mstrip {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 0;
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 3px;
+/* ---------- LEFT COLUMN: PICKER ---------- */
+.picker-head {
     background: #0a0a0a;
-    margin-bottom: 40px;
-    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 4px 4px 0 0;
+    border-bottom: none;
+    padding: 0.75rem 0.9rem 0.5rem;
 }
-.ms-cell {
-    padding: 16px 20px;
-    border-right: 1px solid rgba(255,255,255,0.06);
-}
-.ms-cell:last-child { border-right: none; }
-.ms-lbl {
+.picker-title {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 9px; color: #6a6a6a;
-    letter-spacing: 0.18em; text-transform: uppercase;
-    margin-bottom: 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #8a8a8a;
+    margin-bottom: 0.25rem;
 }
-.ms-val {
-    font-family: 'Space Grotesk', sans-serif;
-    font-weight: 700; font-size: 20px;
-    letter-spacing: -0.02em; color: #fff;
-    line-height: 1;
+.picker-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: #4a4a4a;
+    letter-spacing: 0.05em;
 }
-.ms-val.g { color: #00ff9f; }
-.ms-val.r { color: #ff4d4d; }
 
-/* --- Data tables / dataframes --- */
-.stDataFrame, [data-testid="stTable"] {
-    border: 1px solid rgba(255,255,255,0.08) !important;
+/* Search box — styled to sit flush with picker-head above and list below */
+.stTextInput {
+    background: #0a0a0a;
+    border-left: 1px solid rgba(255,255,255,0.08);
+    border-right: 1px solid rgba(255,255,255,0.08);
+    padding: 0 0.9rem 0.55rem !important;
+}
+.stTextInput > div { background: transparent !important; }
+.stTextInput label { display: none !important; }
+.stTextInput input {
+    background: #000 !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    color: #fff !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.78rem !important;
+    padding: 0.42rem 0.55rem !important;
     border-radius: 3px !important;
 }
+.stTextInput input:focus {
+    border-color: rgba(0,255,159,0.4) !important;
+    box-shadow: 0 0 0 1px rgba(0,255,159,0.25) !important;
+}
 
-/* --- Methodology footer --- */
-.method-card {
+/* Politician list */
+.pol-list {
     background: #0a0a0a;
     border: 1px solid rgba(255,255,255,0.08);
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    padding: 0.35rem 0.55rem 0.55rem;
+    max-height: 560px;
+    overflow-y: auto;
+}
+.pol-list::-webkit-scrollbar { width: 6px; }
+.pol-list::-webkit-scrollbar-track { background: transparent; }
+.pol-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+
+.pol-item {
+    display: grid;
+    grid-template-columns: 1.3fr 0.6fr 0.7fr;
+    column-gap: 0.4rem;
+    align-items: center;
+    padding: 0.45rem 0.55rem;
+    margin: 0.15rem 0;
+    border: 1px solid transparent;
     border-radius: 3px;
-    padding: 22px 26px; margin: 40px 0 12px;
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.15s, border-color 0.15s;
 }
-.method-body {
-    font-size: 12px; line-height: 1.7;
-    color: #8a8a8a; letter-spacing: 0.01em;
+.pol-item:hover {
+    background: rgba(255,255,255,0.025);
+    border-color: rgba(255,255,255,0.08);
 }
-.method-body strong { color: #fff; font-weight: 600; }
-.method-brand {
-    margin-top: 14px; padding-top: 14px;
-    border-top: 1px solid rgba(255,255,255,0.06);
+.pol-item.active {
+    border-color: #00ff9f;
+    background: rgba(0,255,159,0.06);
+}
+.pol-name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 0.82rem;
+    color: #fff;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+}
+.pol-meta {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 10px; color: #4a4a4a;
+    font-size: 0.6rem;
+    color: #8a8a8a;
     letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-top: 2px;
 }
-.method-brand a { color: #00ff9f; text-decoration: none; }
-
-.disclaimer {
+.pol-s-label {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 9px; color: #3a3a3a;
-    line-height: 1.7; letter-spacing: 0.02em;
-    margin-top: 12px;
+    font-size: 0.55rem;
+    color: #6a6a6a;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    line-height: 1;
+    margin-bottom: 2px;
+}
+.pol-s-value {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 0.82rem;
+    color: #fff;
+    line-height: 1;
+    letter-spacing: -0.02em;
+}
+.pol-s-value.dim { color: #4a4a4a; font-weight: 400; }
+
+/* ---------- RIGHT COLUMN: HERO ---------- */
+.hero-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    background: #0a0a0a;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 4px 4px 0 0;
+    border-bottom: none;
+    padding: 0.85rem 1rem 0.6rem;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.hero-name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: #fff;
+    letter-spacing: -0.015em;
+}
+.hero-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    color: #8a8a8a;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-top: 3px;
+}
+.hero-hold {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: nowrap;
+}
+.hold-lbl {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    color: #6a6a6a;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+.hold-row {
+    display: flex;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 2px;
+    overflow: hidden;
+}
+.hold-pill {
+    padding: 0.3rem 0.55rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    color: #8a8a8a;
+    text-decoration: none;
+    border-right: 1px solid rgba(255,255,255,0.08);
+    letter-spacing: 0.05em;
+    transition: all 0.15s;
+}
+.hold-pill:last-child { border-right: none; }
+.hold-pill:hover { color: #fff; background: rgba(255,255,255,0.03); }
+.hold-pill.active { background: rgba(0,255,159,0.1); color: #00ff9f; }
+
+/* Verdict line */
+.verdict-line {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: #d0d0d0;
+    background: #0a0a0a;
+    border-left: 1px solid rgba(255,255,255,0.08);
+    border-right: 1px solid rgba(255,255,255,0.08);
+    padding: 0.35rem 1rem 0.7rem;
+}
+.verdict-line .good { color: #00ff9f; font-weight: 600; }
+.verdict-line .bad  { color: #ff4d4d; font-weight: 600; }
+.verdict-line .gap-val { color: #ff4d4d; font-weight: 700; }
+.verdict-line .gap-val.pos { color: #00ff9f; }
+
+/* Chart wrapper — plotly container becomes the middle of the card */
+[data-testid="stPlotlyChart"] {
+    background: #000000 !important;
+    border-left: 1px solid rgba(255,255,255,0.08) !important;
+    border-right: 1px solid rgba(255,255,255,0.08) !important;
+    padding: 0.2rem 0.4rem 0.2rem !important;
 }
 
-/* Progress bar & dividers */
+/* Caption */
+.chart-caption {
+    background: #0a0a0a;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    padding: 0.55rem 1rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    color: #8a8a8a;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+/* ---------- LEDGER ---------- */
+.ledger-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #8a8a8a;
+    margin: 1.4rem 0 0.55rem;
+    font-weight: 600;
+}
+.stDataFrame {
+    background: #0a0a0a !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    border-radius: 4px !important;
+}
+
+/* Progress bar */
 [data-testid="stProgress"] > div > div > div { background: #00ff9f !important; }
-hr {
-    border: none !important;
-    border-top: 1px solid rgba(255,255,255,0.08) !important;
-    margin: 20px 0 !important;
-}
 
-/* Plotly chart container */
-.js-plotly-plot { background: transparent !important; }
-
-/* Streamlit captions */
-.stCaption, [data-testid="stCaptionContainer"] {
-    color: #6a6a6a !important;
+/* Alerts */
+[data-testid="stAlert"] {
+    background: #0a0a0a !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-radius: 3px !important;
     font-family: 'JetBrains Mono', monospace !important;
-    font-size: 11px !important;
-    letter-spacing: 0.08em;
-}
-
-/* Responsive */
-@media (max-width: 900px) {
-    .shot-nums { grid-template-columns: 1fr; gap: 20px; padding: 28px 20px 16px; }
-    .shot-sep { display: none; }
-    .shot-n-val { font-size: 44px; }
-    .shot-n-val.big { font-size: 52px; }
-    .mstrip { grid-template-columns: repeat(2, 1fr); }
-    .ms-cell { border-bottom: 1px solid rgba(255,255,255,0.06); }
-    .tbar { gap: 10px; }
-    .tnav { gap: 10px; }
+    font-size: 0.8rem !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
 
 # ===================================================================
-# DATA LOADING  (unchanged)
+# DATA LOADING   (UNCHANGED from original)
 # ===================================================================
 
 def get_quiver_api_key():
@@ -556,6 +390,7 @@ def load_congressional_trades():
 def normalize_df(df, source_type):
     df.columns = [str(c).strip() for c in df.columns]
     lower_cols = {c.lower(): c for c in df.columns}
+
     out = pd.DataFrame()
 
     for k in ["representative", "senator", "politician", "name", "member", "reporter", "trader"]:
@@ -582,25 +417,6 @@ def normalize_df(df, source_type):
         if k in lower_cols:
             out["amount"] = df[lower_cols[k]].astype(str)
             break
-    # Optional: party, state, chamber — preserved when source provides them
-    for k in ["party"]:
-        if k in lower_cols:
-            out["party"] = df[lower_cols[k]].astype(str).str.strip()
-            break
-    for k in ["state"]:
-        if k in lower_cols:
-            out["state"] = df[lower_cols[k]].astype(str).str.upper().str.strip()
-            break
-    for k in ["house", "chamber", "office"]:
-        if k in lower_cols:
-            out["chamber"] = df[lower_cols[k]].astype(str).str.strip()
-            break
-    # Infer chamber from column name if missing (Quiver splits endpoints)
-    if "chamber" not in out.columns:
-        if "senator" in lower_cols:
-            out["chamber"] = "Senate"
-        elif "representative" in lower_cols:
-            out["chamber"] = "House"
 
     required = ["politician", "ticker", "transaction_date"]
     missing = [r for r in required if r not in out.columns]
@@ -643,7 +459,7 @@ def get_price_history(ticker, start, end):
 
 
 # ===================================================================
-# BACKTEST LOGIC  (unchanged)
+# BACKTEST LOGIC   (UNCHANGED from original)
 # ===================================================================
 
 def get_spy_benchmark(start, end):
@@ -780,41 +596,21 @@ def compute_portfolio_stats(bt_results):
 
 
 # ===================================================================
-# NEW: PRECOMPUTED POLITICIAN SUMMARY (cheap, no pricing)
+# UI HELPERS (pandas aggregation only, no data fetch, no backtest)
 # ===================================================================
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def build_politician_summary(trades_df):
-    """Per-politician metadata — count, avg lag, recency. No pricing."""
+    """Per-politician aggregates from the already-loaded trades dataframe."""
     purchases = trades_df[~trades_df["type"].str.contains("sale", case=False, na=False)].copy()
     purchases["lag_days"] = (purchases["disclosure_date"] - purchases["transaction_date"]).dt.days
-    agg = {
-        "trades": ("ticker", "count"),
-        "avg_lag_days": ("lag_days", "mean"),
-        "latest_trade": ("transaction_date", "max"),
-        "unique_tickers": ("ticker", "nunique"),
-    }
-    g = purchases.groupby("politician").agg(**agg).reset_index()
-    # Carry optional fields if present
-    for optional in ["party", "state", "chamber"]:
-        if optional in purchases.columns:
-            first = purchases.groupby("politician")[optional].first().reset_index()
-            g = g.merge(first, on="politician", how="left")
+    g = purchases.groupby("politician").agg(
+        trades=("ticker", "count"),
+        avg_lag_days=("lag_days", "mean"),
+        latest_trade=("transaction_date", "max"),
+    ).reset_index()
     g["avg_lag_days"] = g["avg_lag_days"].fillna(30).round(0).astype(int)
     return g
-
-
-# ===================================================================
-# NEW: UI HELPERS
-# ===================================================================
-
-def initials(name):
-    parts = [p for p in str(name).replace("Dr.", "").replace("Sen.", "").replace("Rep.", "").split() if p]
-    if len(parts) >= 2:
-        return (parts[0][0] + parts[-1][0]).upper()
-    elif len(parts) == 1:
-        return parts[0][:2].upper()
-    return "??"
 
 
 def relative_date(d):
@@ -825,117 +621,42 @@ def relative_date(d):
     days = (datetime.now().date() - d).days
     if days < 0: return "future"
     if days == 0: return "today"
-    if days < 7: return f"{days}d"
-    if days < 30: return f"{days // 7}w"
-    if days < 365: return f"{days // 30}mo"
-    return f"{days // 365}y"
-
-
-def build_link(selected_politician, sort_by, hold_days):
-    """Stateful URL — clicking any control preserves the others."""
-    return f"?p={urlquote(str(selected_politician))}&sort={sort_by}&hold={hold_days}"
-
-
-def sparkline_svg(pol_eq, retail_eq, width=800, height=90):
-    """Inline SVG: pol_eq (signal green) vs retail_eq (danger red). Zero-line dashed."""
-    if pol_eq is None or len(pol_eq) == 0 or retail_eq is None or len(retail_eq) == 0:
-        return ""
-    all_y = list(pol_eq["equity"]) + list(retail_eq["equity"])
-    ymin, ymax = min(all_y), max(all_y)
-    span = max(ymax - ymin, 0.5)
-    pad = span * 0.15
-    ymin -= pad; ymax += pad
-    span = ymax - ymin
-
-    def path(df):
-        n = len(df)
-        if n == 0: return ""
-        if n == 1:
-            y = height - 4 - ((df["equity"].iloc[0] - ymin) / span) * (height - 8)
-            return f"{4:.1f},{y:.1f} {(width-4):.1f},{y:.1f}"
-        pts = []
-        for i, v in enumerate(df["equity"]):
-            x = (i / (n - 1)) * (width - 8) + 4
-            y = height - 4 - ((v - ymin) / span) * (height - 8)
-            pts.append(f"{x:.1f},{y:.1f}")
-        return " ".join(pts)
-
-    pol_pts = path(pol_eq)
-    ret_pts = path(retail_eq)
-    zero_y = height - 4 - ((100 - ymin) / span) * (height - 8)
-    zero_y = max(4, min(height - 4, zero_y))
-
-    return f'''<svg viewBox="0 0 {width} {height}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:{height}px; display:block;">
-  <line x1="0" y1="{zero_y:.1f}" x2="{width}" y2="{zero_y:.1f}" stroke="rgba(255,255,255,0.12)" stroke-width="1" stroke-dasharray="3 3"/>
-  <polyline fill="none" stroke="#ff4d4d" stroke-width="2" points="{ret_pts}"/>
-  <polyline fill="none" stroke="#00ff9f" stroke-width="2.2" points="{pol_pts}" style="filter: drop-shadow(0 0 3px rgba(0,255,159,0.6));"/>
-</svg>'''
+    if days < 7: return f"{days}d ago"
+    if days < 30: return f"{days // 7}w ago"
+    if days < 365: return f"{days // 30}mo ago"
+    return f"{days // 365}y ago"
 
 
 # ===================================================================
-# NAV BAR
+# LOAD DATA
 # ===================================================================
 
-st.markdown("""
-<div class="tnav">
-  <div class="tnav-left">
-    <div class="tnav-logo"></div>
-    <div class="tnav-name">The Fifth<em>Signal</em></div>
-    <div class="tnav-badge">Signal 05 · Conflict Score</div>
-  </div>
-  <a href="https://thecapitoldossier.com/#pricing" target="_blank" class="tnav-cta">Start 7-Day Trial →</a>
-</div>
-""", unsafe_allow_html=True)
-
-
-# ===================================================================
-# DATA LOAD
-# ===================================================================
-
-with st.spinner("Loading congressional trade data from Quiver (first load may take up to 5 minutes; cached for 24 hours after)..."):
+with st.spinner("Loading Quiver data..."):
     trades, source_name = load_congressional_trades()
 
 if trades is None:
     if source_name == "NO_API_KEY":
-        st.error("Quiver API key not configured.")
-        st.markdown("""
-        **To connect your Quiver API key:**
-        1. In your deployed Streamlit app, click the `⋮` menu → **Settings** → **Secrets**
-        2. Paste: `QUIVER_API_KEY = "your_key_here"`
-        3. Save. The app reboots automatically.
-
-        Or upload a CSV manually below for a one-time run.
-        """)
+        st.error("Quiver API key not configured. Set `QUIVER_API_KEY` in App Settings → Secrets.")
     elif source_name == "INVALID_API_KEY":
-        st.error("Quiver returned 401 Unauthorized. Key is invalid or expired.")
+        st.error("Quiver returned 401. Invalid or expired key.")
     elif source_name == "RATE_LIMITED":
-        st.error("Quiver returned 429 Too Many Requests. Wait a few minutes.")
+        st.error("Quiver returned 429. Rate limited — wait a few minutes.")
     elif source_name.startswith("ALL_ENDPOINTS_FAILED"):
         st.error("All Quiver endpoints failed.")
         st.code(source_name, language="text")
     elif source_name.startswith("COLUMN_MAPPING"):
-        st.error("API worked but columns don't match.")
+        st.error("Column mapping failed.")
         st.code(source_name, language="text")
     else:
-        st.warning(f"Could not load live data: `{source_name}`. Upload a CSV below.")
-
-    uploaded = st.file_uploader("Upload congressional trades CSV", type=["csv"])
+        st.warning(f"Load failed: `{source_name}`.")
+    uploaded = st.file_uploader("Upload CSV fallback", type=["csv"])
     if uploaded:
-        df = pd.read_csv(uploaded)
-        trades = normalize_df(df, "upload")
+        trades = normalize_df(pd.read_csv(uploaded), "upload")
         source_name = "Manual Upload"
     else:
         st.stop()
 
-
-# ===================================================================
-# PRECOMPUTE SUMMARY
-# ===================================================================
-
 summary = build_politician_summary(trades)
-total_pols = len(summary)
-total_trades = int(summary["trades"].sum())
-avg_lag_all = int(summary["avg_lag_days"].median()) if len(summary) else 30
 
 
 # ===================================================================
@@ -943,20 +664,6 @@ avg_lag_all = int(summary["avg_lag_days"].median()) if len(summary) else 30
 # ===================================================================
 
 qp = st.query_params
-priority_names = ["Nancy Pelosi", "Paul Pelosi", "Dan Crenshaw", "Marjorie Taylor Greene",
-                  "Josh Gottheimer", "Ro Khanna", "Mark Green", "Tommy Tuberville",
-                  "Shelley Moore Capito", "Ron Wyden"]
-priority_in_data = [p for p in priority_names if p in summary["politician"].values]
-default_pol = priority_in_data[0] if priority_in_data else summary.iloc[0]["politician"]
-
-selected_politician = qp.get("p", default_pol)
-if selected_politician not in summary["politician"].values:
-    selected_politician = default_pol
-
-sort_by = qp.get("sort", "trades")
-if sort_by not in ["trades", "lag", "recent", "alpha"]:
-    sort_by = "trades"
-
 try:
     hold_days = int(qp.get("hold", "90"))
 except Exception:
@@ -964,373 +671,282 @@ except Exception:
 if hold_days not in [30, 60, 90, 180, 365]:
     hold_days = 90
 
+if len(summary) == 0:
+    st.error("No politicians with purchase trades in the dataset.")
+    st.stop()
+
+default_pol = summary.sort_values("trades", ascending=False).iloc[0]["politician"]
+selected_politician = qp.get("p", default_pol)
+if selected_politician not in summary["politician"].values:
+    selected_politician = default_pol
+
+if "gap_cache" not in st.session_state:
+    st.session_state["gap_cache"] = {}
+
 
 # ===================================================================
-# TOOLBAR — sort pills + hold pills (both inline)
+# HEADER STRIP
 # ===================================================================
 
-sort_options = [
-    ("trades", "Most Trades"),
-    ("lag", "Longest Lag"),
-    ("recent", "Recent Activity"),
-    ("alpha", "A – Z"),
-]
-hold_options = [30, 60, 90, 180, 365]
-
-sort_html = "".join(
-    f'<a href="?p={urlquote(selected_politician)}&sort={s}&hold={hold_days}" '
-    f'class="pill {"active" if s == sort_by else ""}">{label}</a>'
-    for s, label in sort_options
-)
-hold_html = "".join(
-    f'<a href="?p={urlquote(selected_politician)}&sort={sort_by}&hold={h}" '
-    f'class="pill {"active" if h == hold_days else ""}">{h}d</a>'
-    for h in hold_options
-)
-
+latest_trade_date = trades["transaction_date"].max().strftime("%b %d, %Y")
 st.markdown(f"""
-<div class="tbar">
-  <div class="tbar-lbl">Sort</div>
-  <div class="pill-row">{sort_html}</div>
-  <div class="tbar-lbl" style="margin-left:12px;">Hold</div>
-  <div class="pill-row">{hold_html}</div>
+<div class="tool-header">
+  <div class="tool-title">Signal 05 · Congressional Conflict Score</div>
+  <div class="tool-meta">Data from Quiver · Updated {latest_trade_date}</div>
 </div>
 """, unsafe_allow_html=True)
 
 
 # ===================================================================
-# POLITICIAN LEADERBOARD GRID
+# TWO-COLUMN LAYOUT
 # ===================================================================
 
-if sort_by == "trades":
-    ranked = summary.sort_values("trades", ascending=False)
-elif sort_by == "lag":
-    ranked = summary.sort_values(["avg_lag_days", "trades"], ascending=[False, False])
-elif sort_by == "recent":
-    ranked = summary.sort_values("latest_trade", ascending=False)
-else:  # alpha
-    ranked = summary.sort_values("politician", ascending=True)
+col_left, col_right = st.columns([0.38, 0.62], gap="small")
 
-# Limit to top 12 for the grid; user can switch sort to find others
-visible = ranked.head(12).copy()
 
-cards_html = []
-for _, r in visible.iterrows():
-    name = r["politician"]
-    is_active = name == selected_politician
-    meta_parts = []
-    if "party" in r and pd.notna(r.get("party")) and str(r.get("party")).strip():
-        meta_parts.append(str(r["party"])[:1])
-    if "state" in r and pd.notna(r.get("state")) and str(r.get("state")).strip():
-        meta_parts.append(str(r["state"]))
-    if "chamber" in r and pd.notna(r.get("chamber")) and str(r.get("chamber")).strip():
-        meta_parts.append(str(r["chamber"]))
-    meta_line = " · ".join(meta_parts) if meta_parts else "Congressional"
+# ---------------- LEFT: PICKER ----------------
 
-    link = build_link(name, sort_by, hold_days)
-    cards_html.append(f'''
-    <a href="{link}" class="pcard {'active' if is_active else ''}">
-      <div class="pc-head">
-        <div class="pc-avatar">{initials(name)}</div>
-        <div>
-          <div class="pc-name">{name}</div>
-          <div class="pc-meta">{meta_line}</div>
-        </div>
-      </div>
-      <div class="pc-stats">
-        <div><div class="pc-s-lbl">Trades</div><div class="pc-s-val">{int(r["trades"])}</div></div>
-        <div><div class="pc-s-lbl">Avg Lag</div><div class="pc-s-val">{int(r["avg_lag_days"])}d</div></div>
-        <div><div class="pc-s-lbl">Latest</div><div class="pc-s-val">{relative_date(r["latest_trade"])}</div></div>
-      </div>
-    </a>
-    ''')
+with col_left:
+    st.markdown("""
+    <div class="picker-head">
+      <div class="picker-title">Politician Backtest</div>
+      <div class="picker-sub">Search. Click one. Right side shows you vs them.</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-st.markdown(
-    f'<div class="kicker">Defendants · {total_pols} members · showing top 12 by {sort_by}</div>',
-    unsafe_allow_html=True
-)
-st.markdown(f'<div class="pgrid">{"".join(cards_html)}</div>', unsafe_allow_html=True)
-
-if total_pols > 12:
-    st.markdown(
-        f'<div class="pgrid-more">Sort pills above cycle through all {total_pols} members · '
-        f'selected defendant below backtests in real time</div>',
-        unsafe_allow_html=True
+    search = st.text_input(
+        "Search",
+        key="pol_search",
+        label_visibility="collapsed",
+        placeholder="Search name...",
     )
 
+    q = (search or "").strip().lower()
+    filtered_sum = summary.copy()
+    if q:
+        filtered_sum = filtered_sum[filtered_sum["politician"].str.lower().str.contains(q, na=False)]
+    filtered_sum = filtered_sum.sort_values("trades", ascending=False).head(60)
 
-# ===================================================================
-# FILTER + BACKTEST the selected politician
-# ===================================================================
+    gap_cache = st.session_state["gap_cache"]
 
-filtered = trades[
+    rows = []
+    for _, r in filtered_sum.iterrows():
+        name = r["politician"]
+        is_active = (name == selected_politician)
+        trades_count = int(r["trades"])
+        avg_lag = int(r["avg_lag_days"])
+        latest = relative_date(r["latest_trade"])
+        meta_line = f"{latest} · {avg_lag}d avg lag"
+
+        gap_val = gap_cache.get(name)
+        if gap_val is not None:
+            gap_display = f"{gap_val:+.1f}pp"
+            gap_class = ""
+        else:
+            gap_display = "—"
+            gap_class = " dim"
+
+        href = f"?p={urlquote(name)}&hold={hold_days}"
+        active_cls = " active" if is_active else ""
+
+        rows.append(
+            f'<a href="{href}" class="pol-item{active_cls}" target="_self">'
+            f'<div><div class="pol-name">{name}</div><div class="pol-meta">{meta_line}</div></div>'
+            f'<div><div class="pol-s-label">Trades</div><div class="pol-s-value">{trades_count}</div></div>'
+            f'<div><div class="pol-s-label">Avg. Gap</div><div class="pol-s-value{gap_class}">{gap_display}</div></div>'
+            f'</a>'
+        )
+
+    st.markdown(f'<div class="pol-list">{"".join(rows)}</div>', unsafe_allow_html=True)
+
+
+# ---------------- RIGHT: HERO (verdict + one chart) ----------------
+
+filtered_trades = trades[
     (trades["politician"] == selected_politician) &
     (~trades["type"].str.contains("sale", case=False, na=False))
 ].copy()
 
-if len(filtered) == 0:
-    st.warning(f"No purchase trades found for {selected_politician}.")
-    st.stop()
+with col_right:
+    if len(filtered_trades) == 0:
+        st.warning(f"No purchase trades found for {selected_politician}.")
+        st.stop()
 
-progress = st.progress(0, text=f"Running backtest on {len(filtered)} trades...")
-bt_chunks = []
-chunk_size = max(1, len(filtered) // 20)
-for i in range(0, len(filtered), chunk_size):
-    chunk = filtered.iloc[i:i+chunk_size]
-    r = backtest_with_lag_analysis(chunk, hold_days=hold_days)
-    bt_chunks.append(r)
-    progress.progress(min(1.0, (i + chunk_size) / len(filtered)),
-                      text=f"Running backtest... ({min(i+chunk_size, len(filtered))}/{len(filtered)} trades)")
-progress.empty()
-bt = pd.concat(bt_chunks, ignore_index=True) if bt_chunks else pd.DataFrame()
+    progress = st.progress(0, text=f"Running backtest on {len(filtered_trades)} trades...")
+    bt_chunks = []
+    chunk_size = max(1, len(filtered_trades) // 20)
+    for i in range(0, len(filtered_trades), chunk_size):
+        chunk = filtered_trades.iloc[i:i+chunk_size]
+        r = backtest_with_lag_analysis(chunk, hold_days=hold_days)
+        bt_chunks.append(r)
+        progress.progress(
+            min(1.0, (i + chunk_size) / len(filtered_trades)),
+            text=f"Running backtest... ({min(i+chunk_size, len(filtered_trades))}/{len(filtered_trades)})",
+        )
+    progress.empty()
 
-if len(bt) == 0:
-    st.warning("No trades could be priced (tickers may be delisted or outside yfinance coverage).")
-    st.stop()
+    bt = pd.concat(bt_chunks, ignore_index=True) if bt_chunks else pd.DataFrame()
+    if len(bt) == 0:
+        st.warning("No priceable trades (tickers may be delisted or outside yfinance coverage).")
+        st.stop()
 
-stats = compute_lag_stats(bt)
-bt_start = bt["trade_date"].min()
-bt_end_retail = bt["disclosure_date"].max() + timedelta(days=hold_days)
-spy_return = get_spy_benchmark(bt_start, bt_end_retail)
+    stats = compute_lag_stats(bt)
+    pol_r = stats["politician_return"]
+    ret_r = stats["retail_return"]
+    gap = stats["alpha_gap"]
+    avg_lag = int(round(stats["avg_lag_days"]))
 
-pol_r = stats["politician_return"]
-ret_r = stats["retail_return"]
-gap = stats["alpha_gap"]
-avg_lag = stats["avg_lag_days"]
-spy_r = spy_return if spy_return is not None else 0
+    # Cache the computed gap so the left-list "Avg. Gap" column fills in over time
+    st.session_state["gap_cache"][selected_politician] = gap
 
+    # --- Hero top row: name + meta + hold pills ---
+    active_row = summary[summary["politician"] == selected_politician].iloc[0]
+    active_latest = relative_date(active_row["latest_trade"])
+    hero_meta = f"{int(active_row['trades'])} trades · latest {active_latest}"
 
-# ===================================================================
-# THE SCREENSHOT BLOCK — one card, two-second comprehension
-# ===================================================================
-
-# Build meta line for the active politician from summary
-active_row = summary[summary["politician"] == selected_politician].iloc[0]
-meta_bits = [f"{int(active_row['trades'])} trades"]
-if "party" in active_row and pd.notna(active_row.get("party")) and str(active_row.get("party")).strip():
-    meta_bits.insert(0, str(active_row["party"])[:1])
-if "state" in active_row and pd.notna(active_row.get("state")) and str(active_row.get("state")).strip():
-    meta_bits.insert(-1, str(active_row["state"]))
-if "chamber" in active_row and pd.notna(active_row.get("chamber")) and str(active_row.get("chamber")).strip():
-    meta_bits.insert(-1, str(active_row["chamber"]))
-meta_bits.append(f"{int(avg_lag)}d avg lag")
-meta_bits.append(f"{hold_days}d hold")
-shot_meta = " · ".join(meta_bits)
-
-# Single-line verdict — match the four narrative cases, one sentence each
-if gap > 1.0:
-    verdict = (
-        f"The <b>{int(avg_lag)}-day disclosure lag</b> stole <b>{gap:.1f} percentage points</b> of alpha — "
-        f"the stocks had already run <b>{stats['avg_lag_alpha']:+.1f}%</b> before retail could legally act. "
-        f"S&amp;P returned <b>{spy_r:+.1f}%</b> over the same window."
-    )
-elif pol_r < 0 and ret_r < 0:
-    verdict = (
-        f"<b>Both entries lost money.</b> The strategy fails regardless of timing. "
-        f"S&amp;P returned <b>{spy_r:+.1f}%</b> — buying the index beat copying the member on either entry date."
-    )
-elif ret_r > pol_r:
-    verdict = (
-        f"<b>The member's timing was actually worse</b> — stocks dropped during the blackout. "
-        f"Neither entry beat the S&amp;P's <b>{spy_r:+.1f}%</b>. The copy-trading premise is unreliable either way."
-    )
-elif spy_r > max(pol_r, ret_r):
-    verdict = (
-        f"Both strategies made money. <b>The S&amp;P made more ({spy_r:+.1f}%)</b>. "
-        f"You could have skipped the analysis, bought an index fund, and outperformed by <b>{spy_r - ret_r:.1f}pp</b>."
-    )
-else:
-    verdict = (
-        f"Both entries beat the S&amp;P. The lag still cost retail <b>{gap:.1f}pp</b> of the member's captured alpha."
+    hold_options = [30, 60, 90, 180, 365]
+    hold_pills = "".join(
+        f'<a href="?p={urlquote(selected_politician)}&hold={h}" '
+        f'class="hold-pill{" active" if h == hold_days else ""}" target="_self">{h}d</a>'
+        for h in hold_options
     )
 
-spark = sparkline_svg(stats["pol_equity_curve"], stats["retail_equity_curve"])
-
-# Big-number class for the gap depends on sign
-gap_class = "big"
-gap_prefix = ""
-gap_display = f"{abs(gap):.1f}"
-
-shot_html = f"""
-<div class="shot">
-  <div class="shot-head">
-    <div class="shot-avatar">{initials(selected_politician)}</div>
-    <div>
-      <div class="shot-id-name">{selected_politician}</div>
-      <div class="shot-id-meta">{shot_meta}</div>
+    st.markdown(f"""
+    <div class="hero-top">
+      <div>
+        <div class="hero-name">{selected_politician}</div>
+        <div class="hero-meta">{hero_meta}</div>
+      </div>
+      <div class="hero-hold">
+        <span class="hold-lbl">Hold</span>
+        <div class="hold-row">{hold_pills}</div>
+      </div>
     </div>
-    <div class="shot-stamp">Signal 05</div>
-  </div>
-  <div class="shot-nums">
-    <div class="shot-n">
-      <div class="shot-n-lbl">They Captured</div>
-      <div class="shot-n-val {'good' if pol_r >= 0 else 'bad'}">{pol_r:+.1f}<span class="u">%</span></div>
+    """, unsafe_allow_html=True)
+
+    # --- Verdict line: one sentence ---
+    if gap >= 0:
+        gap_phrase = f'<span class="gap-val">{gap:.1f}pp stolen by the lag</span>'
+    else:
+        gap_phrase = f'<span class="gap-val pos">{abs(gap):.1f}pp retail got lucky on</span>'
+
+    st.markdown(f"""
+    <div class="verdict-line">
+      They captured <span class="good">{pol_r:+.1f}%</span>
+      · You get <span class="bad">{ret_r:+.1f}%</span>
+      · {gap_phrase}
     </div>
-    <div class="shot-sep">→</div>
-    <div class="shot-n">
-      <div class="shot-n-lbl">You Got</div>
-      <div class="shot-n-val {'good' if ret_r >= 0 else 'bad'}">{ret_r:+.1f}<span class="u">%</span></div>
-    </div>
-    <div class="shot-sep">=</div>
-    <div class="shot-n">
-      <div class="shot-n-lbl">Stolen by Lag</div>
-      <div class="shot-n-val {gap_class}">{gap:+.1f}<span class="u">pp</span></div>
-    </div>
-  </div>
-  <div class="shot-spark">
-    <div class="shot-spark-legend">
-      <span><span class="sw g"></span>Member (trade-date entry)</span>
-      <span><span class="sw r"></span>Retail copy (disclosure entry)</span>
-    </div>
-    {spark}
-  </div>
-  <div class="shot-verdict">{verdict}</div>
-  <div class="shot-foot">
-    <span class="shot-foot-hint">SCREENSHOT THIS CARD · POST IT</span>
-    <a href="https://thecapitoldossier.com/" target="_blank">thecapitoldossier.com</a>
-  </div>
-</div>
-"""
-st.markdown(shot_html, unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
+    # --- One chart: two lines, shaded gap, midpoint label ---
+    pol_eq = stats["pol_equity_curve"]
+    retail_eq = stats["retail_equity_curve"]
 
-# ===================================================================
-# METRIC STRIP — supporting numbers in one inline row
-# ===================================================================
+    fig = go.Figure()
 
-st.markdown(f"""
-<div class="mstrip">
-  <div class="ms-cell">
-    <div class="ms-lbl">Trades Analyzed</div>
-    <div class="ms-val">{stats['trades']}</div>
-  </div>
-  <div class="ms-cell">
-    <div class="ms-lbl">S&amp;P 500</div>
-    <div class="ms-val">{spy_r:+.1f}%</div>
-  </div>
-  <div class="ms-cell">
-    <div class="ms-lbl">Their Win Rate</div>
-    <div class="ms-val g">{stats['pol_win_rate']:.0f}%</div>
-  </div>
-  <div class="ms-cell">
-    <div class="ms-lbl">Your Win Rate</div>
-    <div class="ms-val r">{stats['retail_win_rate']:.0f}%</div>
-  </div>
-  <div class="ms-cell">
-    <div class="ms-lbl">Pre-Disclosure Runs</div>
-    <div class="ms-val">{stats['lag_blackout_rate']:.0f}%</div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
-
-
-# ===================================================================
-# FULL EQUITY CURVE
-# ===================================================================
-
-st.markdown('<div class="kicker">The full curve</div>', unsafe_allow_html=True)
-st.caption(f"$100 invested · green: member's trade-date entry · red: retail's disclosure-date entry · dotted gray: S&P buy-and-hold · {hold_days}-day hold")
-
-pol_eq = stats["pol_equity_curve"]
-retail_eq = stats["retail_equity_curve"]
-spy_df = None
-if spy_return is not None:
-    spy_prices = get_price_history("SPY", bt_start, bt_end_retail + timedelta(days=5))
-    if spy_prices is not None:
-        spy_df = pd.DataFrame({
-            "date": spy_prices.index.date,
-            "equity": (spy_prices.values / spy_prices.iloc[0]) * 100
-        })
-
-fig = go.Figure()
-fig.add_trace(go.Scatter(
-    x=pol_eq["date"], y=pol_eq["equity"],
-    mode="lines", name=f"{selected_politician} (trade-date entry)",
-    line=dict(color="#00ff9f", width=3),
-))
-fig.add_trace(go.Scatter(
-    x=retail_eq["date"], y=retail_eq["equity"],
-    mode="lines", name="Retail copy (disclosure-date entry)",
-    line=dict(color="#ff4d4d", width=3),
-))
-if spy_df is not None:
+    # Retail (red) first so the politician line's fill="tonexty" shades between them
     fig.add_trace(go.Scatter(
-        x=spy_df["date"], y=spy_df["equity"],
-        mode="lines", name="S&P 500",
-        line=dict(color="#6a6a6a", width=2, dash="dot"),
+        x=retail_eq["date"],
+        y=retail_eq["equity"],
+        mode="lines",
+        name="You (disclosure-date entry)",
+        line=dict(color="#ff4d4d", width=3),
+    ))
+    fig.add_trace(go.Scatter(
+        x=pol_eq["date"],
+        y=pol_eq["equity"],
+        mode="lines",
+        name="Them (trade-date entry)",
+        line=dict(color="#00ff9f", width=3),
+        fill="tonexty",
+        fillcolor="rgba(255,77,77,0.09)" if gap >= 0 else "rgba(0,255,159,0.08)",
     ))
 
-fig.update_layout(
-    plot_bgcolor="#0a0a0a",
-    paper_bgcolor="#000000",
-    font=dict(family="JetBrains Mono, monospace", color="#ffffff", size=12),
-    hovermode="x unified",
-    xaxis=dict(gridcolor="rgba(255,255,255,0.04)", title=""),
-    yaxis=dict(gridcolor="rgba(255,255,255,0.04)", title="$100 start → value"),
-    height=420,
-    margin=dict(l=50, r=30, t=20, b=40),
-    legend=dict(
-        bgcolor="rgba(0,0,0,0.5)",
-        bordercolor="rgba(255,255,255,0.08)",
-        borderwidth=1,
-        orientation="h",
-        yanchor="bottom", y=1.02,
-        xanchor="left", x=0,
-    ),
-)
-fig.add_hline(y=100, line_dash="dash", line_color="rgba(255,255,255,0.12)")
-st.plotly_chart(fig, use_container_width=True)
+    # Midpoint gap label
+    if len(pol_eq) > 0 and len(retail_eq) > 0:
+        mid_p = len(pol_eq) // 2
+        mid_r = min(mid_p, len(retail_eq) - 1)
+        mid_x = pol_eq["date"].iloc[mid_p]
+        mid_y = (pol_eq["equity"].iloc[mid_p] + retail_eq["equity"].iloc[mid_r]) / 2
+        if gap >= 0:
+            ann_text = f"<b>{gap:.1f}pp</b> stolen"
+            ann_color = "#ff4d4d"
+            ann_border = "rgba(255,77,77,0.5)"
+        else:
+            ann_text = f"<b>{abs(gap):.1f}pp</b> retail luck"
+            ann_color = "#00ff9f"
+            ann_border = "rgba(0,255,159,0.5)"
+        fig.add_annotation(
+            x=mid_x, y=mid_y,
+            text=ann_text,
+            showarrow=False,
+            font=dict(family="JetBrains Mono", size=12, color=ann_color),
+            bgcolor="rgba(0,0,0,0.78)",
+            bordercolor=ann_border,
+            borderwidth=1,
+            borderpad=5,
+        )
+
+    fig.add_hline(y=100, line_dash="dot", line_color="rgba(255,255,255,0.1)")
+
+    fig.update_layout(
+        height=400,
+        margin=dict(l=50, r=20, t=26, b=36),
+        paper_bgcolor="#000000",
+        plot_bgcolor="#000000",
+        font=dict(family="JetBrains Mono", size=10, color="#8a8a8a"),
+        xaxis=dict(
+            gridcolor="rgba(255,255,255,0.04)",
+            zerolinecolor="rgba(255,255,255,0.08)",
+            title="",
+            showspikes=False,
+        ),
+        yaxis=dict(
+            gridcolor="rgba(255,255,255,0.04)",
+            zerolinecolor="rgba(255,255,255,0.08)",
+            title="$100 start",
+            title_font=dict(size=9, color="#6a6a6a"),
+        ),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom", y=1.02,
+            xanchor="right", x=1.0,
+            bgcolor="rgba(0,0,0,0)",
+            font=dict(size=10, color="#8a8a8a"),
+        ),
+        hovermode="x unified",
+    )
+
+    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+    # --- Caption ---
+    st.markdown(f"""
+    <div class="chart-caption">
+      {stats['trades']} trades · {hold_days}-day hold · avg. disclosure lag {avg_lag} days
+    </div>
+    """, unsafe_allow_html=True)
 
 
 # ===================================================================
-# EVERY TRADE — all receipts, visible by default (no expander)
+# BELOW FOLD: PER-TRADE TABLE
 # ===================================================================
 
-st.markdown('<div class="kicker">Every trade · the receipts</div>', unsafe_allow_html=True)
-st.caption(f"{len(bt)} purchases · click column headers to sort · widest-gap trades are where the blackout hurt most")
+st.markdown('<div class="ledger-title">Per-trade breakdown</div>', unsafe_allow_html=True)
 
 display_bt = bt[["ticker", "trade_date", "disclosure_date", "lag_days",
-                 "pol_return", "retail_return", "alpha_gap", "lag_alpha"]].copy()
+                 "pol_return", "retail_return", "alpha_gap"]].copy()
 display_bt = display_bt.sort_values("alpha_gap", ascending=False)
 display_bt.columns = ["Ticker", "Trade Date", "Disclosed", "Lag (days)",
-                      "Their %", "Your %", "Gap (pp)", "Blackout %"]
+                      "Their %", "Your %", "Gap (pp)"]
+
 st.dataframe(
     display_bt,
     use_container_width=True,
     hide_index=True,
-    height=min(480, 42 * (len(display_bt) + 1) + 3),
+    height=min(460, 38 * (len(display_bt) + 1) + 3),
     column_config={
-        "Their %": st.column_config.NumberColumn(format="%+.2f%%",
-            help="What the member captured from trade date entry"),
-        "Your %": st.column_config.NumberColumn(format="%+.2f%%",
-            help="What retail got copying on the disclosure date"),
-        "Gap (pp)": st.column_config.NumberColumn(format="%+.2f",
-            help="Percentage points the lag stole from retail on this trade"),
-        "Blackout %": st.column_config.NumberColumn(format="%+.2f%%",
-            help="Pure price move during the disclosure blackout window"),
-    }
+        "Their %": st.column_config.NumberColumn(format="%+.2f%%"),
+        "Your %": st.column_config.NumberColumn(format="%+.2f%%"),
+        "Gap (pp)": st.column_config.NumberColumn(format="%+.2f"),
+    },
 )
-
-
-# ===================================================================
-# METHODOLOGY FOOTER
-# ===================================================================
-
-date_min_str = trades["transaction_date"].min().strftime("%b %Y")
-date_max_str = trades["transaction_date"].max().strftime("%b %Y")
-
-st.markdown(f"""
-<div class="method-card">
-  <div class="method-body">
-    <strong>Methodology.</strong> For every disclosed purchase in the selected window, two entries are simulated: one on the member's actual trade date (what they captured), one on the disclosure date — the earliest a non-member could legally have known (what retail gets). Both hold {hold_days} days. Sales are excluded (retail rarely shorts). S&amp;P benchmark is buy-and-hold SPY over the same window. Dataset currently covers <strong>{date_min_str} – {date_max_str}</strong> · <strong>{total_trades:,} trades</strong> across <strong>{total_pols} members</strong> via the Quiver Quantitative live endpoint. Older history requires a paid Quiver tier.
-  </div>
-  <div class="method-brand">
-    DATA · QUIVER QUANTITATIVE · STOCK ACT PTRs &nbsp;·&nbsp;
-    SIGNAL 05 · THE FIFTH SIGNAL · <a href="https://thecapitoldossier.com/" target="_blank">thecapitoldossier.com</a>
-  </div>
-</div>
-
-<div class="disclaimer">
-For informational and educational purposes only. Not investment advice. All performance data is hypothetical and derived from publicly disclosed congressional transactions. Past performance does not guarantee future results. Options trading involves substantial risk. The Fifth Signal is an educational publication, not a registered investment advisor.
-</div>
-""", unsafe_allow_html=True)
