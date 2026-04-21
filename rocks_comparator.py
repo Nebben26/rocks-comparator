@@ -57,36 +57,43 @@ st.markdown("""
 [data-testid="stVerticalBlockBorderWrapper"] { gap: 0 !important; }
 div[data-testid="stVerticalBlock"] { gap: 0 !important; }
 
-/* Header strip */
+/* Header strip - Premium final version */
 .tool-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
+    margin-bottom: 1.25rem;
     font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 0.72rem;
-    letter-spacing: 0.18em;
+    font-size: 0.85rem;
+    letter-spacing: 0.22em;
     text-transform: uppercase;
     color: #8a8a8a;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    padding-bottom: 0.55rem;
+    border-bottom: 2px solid rgba(0,255,159,0.15);
+    padding-bottom: 0.75rem;
+    background: linear-gradient(90deg, rgba(0,255,159,0.03) 0%, transparent 100%);
 }
 .tool-header .logo { 
-    height: 42px; 
-    width: 42px; 
-    margin-right: 0.75rem; 
-    filter: drop-shadow(0 0 12px #00ff9f); 
+    height: 52px; 
+    width: 52px; 
+    margin-right: 1rem; 
+    filter: drop-shadow(0 0 20px #00ff9f) drop-shadow(0 0 40px rgba(0,255,159,0.4)); 
     vertical-align: middle;
+    image-rendering: crisp-edges;
 }
 .tool-title { 
     color: #00ff9f; 
-    font-weight: 700; 
-    letter-spacing: 0.05em;
+    font-weight: 800; 
+    letter-spacing: 0.08em;
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.75rem;
+    font-size: 1.05rem;
+    text-shadow: 0 0 20px rgba(0,255,159,0.5);
 }
-.tool-meta { font-size: 0.68rem; }
+.tool-meta { 
+    font-size: 0.78rem; 
+    color: #6a6a6a;
+}
 
 /* ---------- LEFT COLUMN: PICKER ---------- */
 .picker-head {
@@ -151,47 +158,48 @@ div[data-testid="stVerticalBlock"] { gap: 0 !important; }
 
 .pol-item {
     display: grid;
-    grid-template-columns: 1.3fr 0.6fr 0.7fr;
-    column-gap: 0.4rem;
+    grid-template-columns: 1.35fr 0.55fr 0.65fr;
+    column-gap: 0.5rem;
     align-items: center;
-    padding: 0.55rem 0.6rem;
-    margin: 0.12rem 0;
+    padding: 0.72rem 0.75rem;
+    margin: 0.18rem 0;
     border: 1px solid transparent;
-    border-radius: 4px;
+    border-radius: 6px;
     text-decoration: none;
     color: inherit;
-    transition: all 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+    transition: all 0.25s cubic-bezier(0.23, 1, 0.32, 1);
     position: relative;
+    background: rgba(10,10,10,0.6);
 }
 .pol-item:hover {
-    background: rgba(255,255,255,0.03);
-    border-color: rgba(0,255,159,0.3);
-    transform: translateX(2px);
+    background: rgba(255,255,255,0.04);
+    border-color: rgba(0,255,159,0.5);
+    transform: translateX(4px) scale(1.01);
+    box-shadow: 0 4px 20px rgba(0,255,159,0.1);
 }
 .pol-item.active {
     border-color: #00ff9f;
-    background: rgba(0,255,159,0.08);
-    box-shadow: 0 0 0 1px rgba(0,255,159,0.4);
+    background: rgba(0,255,159,0.12);
+    box-shadow: 0 0 0 2px rgba(0,255,159,0.6), 0 0 30px rgba(0,255,159,0.3);
+    transform: scale(1.02);
 }
 .pol-item.active::after {
-    content: '';
+    content: '★';
     position: absolute;
-    right: 8px;
+    right: 10px;
     top: 50%;
     transform: translateY(-50%);
-    width: 4px;
-    height: 4px;
-    background: #00ff9f;
-    border-radius: 50%;
-    box-shadow: 0 0 8px #00ff9f;
+    font-size: 0.9rem;
+    color: #00ff9f;
+    text-shadow: 0 0 12px #00ff9f;
 }
 .pol-name {
     font-family: 'Space Grotesk', sans-serif;
-    font-weight: 600;
-    font-size: 0.82rem;
+    font-weight: 700;
+    font-size: 0.92rem;
     color: #fff;
-    line-height: 1.15;
-    letter-spacing: -0.01em;
+    line-height: 1.1;
+    letter-spacing: -0.015em;
 }
 .pol-meta {
     font-family: 'JetBrains Mono', monospace;
@@ -212,11 +220,11 @@ div[data-testid="stVerticalBlock"] { gap: 0 !important; }
 }
 .pol-s-value {
     font-family: 'Space Grotesk', sans-serif;
-    font-weight: 600;
-    font-size: 0.82rem;
+    font-weight: 700;
+    font-size: 0.92rem;
     color: #fff;
     line-height: 1;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.025em;
 }
 .pol-s-value.dim { color: #4a4a4a; font-weight: 400; }
 
@@ -305,15 +313,16 @@ div[data-testid="stVerticalBlock"] { gap: 0 !important; }
 /* Verdict line */
 .verdict-line {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.92rem;
-    font-weight: 600;
-    letter-spacing: 0.03em;
-    color: #d0d0d0;
+    font-size: 1.08rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #e0e0e0;
     background: #0a0a0a;
-    border-left: 1px solid rgba(255,255,255,0.08);
-    border-right: 1px solid rgba(255,255,255,0.08);
-    padding: 0.45rem 1rem 0.85rem;
-    text-shadow: 0 0 12px rgba(0,0,0,0.6);
+    border-left: 2px solid rgba(0,255,159,0.3);
+    border-right: 2px solid rgba(0,255,159,0.3);
+    padding: 0.6rem 1.25rem 1rem;
+    text-shadow: 0 0 20px rgba(0,0,0,0.8);
+    box-shadow: 0 0 30px rgba(0,255,159,0.08);
 }
 .verdict-line .good { 
     color: #00ff9f; 
@@ -358,20 +367,32 @@ div[data-testid="stVerticalBlock"] { gap: 0 !important; }
     text-transform: uppercase;
 }
 
-/* ---------- LEDGER ---------- */
+/* ---------- LEDGER (Premium Tape Style from main site) ---------- */
 .ledger-title {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.72rem;
-    letter-spacing: 0.2em;
+    font-size: 0.78rem;
+    letter-spacing: 0.25em;
     text-transform: uppercase;
-    color: #8a8a8a;
-    margin: 1.4rem 0 0.55rem;
-    font-weight: 600;
+    color: #00ff9f;
+    margin: 1.6rem 0 0.65rem;
+    font-weight: 700;
+    text-shadow: 0 0 12px rgba(0,255,159,0.3);
 }
 .stDataFrame {
     background: #0a0a0a !important;
-    border: 1px solid rgba(255,255,255,0.08) !important;
-    border-radius: 4px !important;
+    border: 2px solid rgba(0,255,159,0.15) !important;
+    border-radius: 6px !important;
+    box-shadow: 0 0 40px rgba(0,255,159,0.06);
+}
+.stDataFrame table {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.78rem !important;
+}
+.stDataFrame th {
+    background: rgba(0,255,159,0.08) !important;
+    color: #00ff9f !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.1em !important;
 }
 
 /* Progress bar */
@@ -1059,9 +1080,9 @@ with col_right:
         y=pol_eq["equity"],
         mode="lines",
         name="Them",
-        line=dict(color="#00ff9f", width=3),
+        line=dict(color="#00ff9f", width=3.5),
         fill="tonexty",
-        fillcolor="rgba(255,77,77,0.10)",
+        fillcolor="rgba(255,77,77,0.22)",
     ))
 
     # End-point value callouts for instant comprehension
@@ -1071,11 +1092,13 @@ with col_right:
             y=pol_eq["equity"].iloc[-1],
             text=f"Them {pol_r:+.1f}%",
             showarrow=False,
-            font=dict(family="JetBrains Mono", size=9, color="#00ff9f"),
+            font=dict(family="JetBrains Mono", size=11, color="#00ff9f"),
             xanchor="left",
             yanchor="middle",
-            bgcolor="rgba(0,0,0,0.6)",
-            borderpad=3,
+            bgcolor="rgba(0,0,0,0.75)",
+            borderpad=4,
+            bordercolor="rgba(0,255,159,0.4)",
+            borderwidth=1,
         )
     if len(retail_eq) > 0:
         fig.add_annotation(
@@ -1083,11 +1106,13 @@ with col_right:
             y=retail_eq["equity"].iloc[-1],
             text=f"You {ret_r:+.1f}%",
             showarrow=False,
-            font=dict(family="JetBrains Mono", size=9, color="#ff4d4d"),
+            font=dict(family="JetBrains Mono", size=11, color="#ff4d4d"),
             xanchor="left",
             yanchor="middle",
-            bgcolor="rgba(0,0,0,0.6)",
-            borderpad=3,
+            bgcolor="rgba(0,0,0,0.75)",
+            borderpad=4,
+            bordercolor="rgba(255,77,77,0.4)",
+            borderwidth=1,
         )
 
     # One inline label over the gap
@@ -1100,15 +1125,15 @@ with col_right:
             x=mid_x, y=mid_y,
             text=annotation_text,
             showarrow=False,
-            font=dict(family="JetBrains Mono", size=12, color=annotation_color),
-            bgcolor="rgba(0,0,0,0.78)",
-            bordercolor="rgba(255,77,77,0.5)" if gap >= 0 else "rgba(0,255,159,0.5)",
-            borderwidth=1,
-            borderpad=5,
+            font=dict(family="JetBrains Mono", size=16, color=annotation_color, weight=700),
+            bgcolor="rgba(0,0,0,0.85)",
+            bordercolor="rgba(255,77,77,0.7)" if gap >= 0 else "rgba(0,255,159,0.7)",
+            borderwidth=2,
+            borderpad=8,
         )
 
     fig.update_layout(
-        height=460,
+        height=520,
         margin=dict(l=50, r=20, t=26, b=36),
         paper_bgcolor="#000000",
         plot_bgcolor="#000000",
