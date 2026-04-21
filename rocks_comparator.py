@@ -57,43 +57,42 @@ st.markdown("""
 [data-testid="stVerticalBlockBorderWrapper"] { gap: 0 !important; }
 div[data-testid="stVerticalBlock"] { gap: 0 !important; }
 
-/* Header strip - Premium final version */
+/* Header strip */
 .tool-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1.25rem;
+    margin-bottom: 1rem;
     font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 0.85rem;
-    letter-spacing: 0.22em;
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
     color: #8a8a8a;
-    border-bottom: 2px solid rgba(0,255,159,0.15);
-    padding-bottom: 0.75rem;
-    background: linear-gradient(90deg, rgba(0,255,159,0.03) 0%, transparent 100%);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding-bottom: 0.55rem;
 }
-.tool-header .logo { 
-    height: 52px; 
-    width: 52px; 
-    margin-right: 1rem; 
-    filter: drop-shadow(0 0 20px #00ff9f) drop-shadow(0 0 40px rgba(0,255,159,0.4)); 
+.tool-header .logo {
+    height: 20px;
+    width: 20px;
+    margin-right: 0.6rem;
     vertical-align: middle;
-    image-rendering: crisp-edges;
 }
-.tool-title { 
-    color: #00ff9f; 
-    font-weight: 800; 
-    letter-spacing: 0.08em;
+.tool-title {
+    color: #00ff9f;
+    font-weight: 600;
     display: inline-flex;
     align-items: center;
-    gap: 0.75rem;
-    font-size: 1.05rem;
-    text-shadow: 0 0 20px rgba(0,255,159,0.5);
+    gap: 0.5rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
 }
-.tool-meta { 
-    font-size: 0.78rem; 
-    color: #6a6a6a;
+.tool-meta {
+    font-size: 0.68rem;
+    color: #8a8a8a;
 }
+
+/* Kill anchor underlines across the whole app — Streamlit injects defaults */
+a, a:link, a:visited, a:hover, a:active { text-decoration: none !important; }
 
 /* ---------- LEFT COLUMN: PICKER ---------- */
 .picker-head {
@@ -161,72 +160,62 @@ div[data-testid="stVerticalBlock"] { gap: 0 !important; }
     grid-template-columns: 1.35fr 0.55fr 0.65fr;
     column-gap: 0.5rem;
     align-items: center;
-    padding: 0.72rem 0.75rem;
-    margin: 0.18rem 0;
+    padding: 0.55rem 0.65rem;
+    margin: 0.15rem 0;
     border: 1px solid transparent;
-    border-radius: 6px;
-    text-decoration: none;
+    border-radius: 3px;
+    text-decoration: none !important;
     color: inherit;
-    transition: all 0.25s cubic-bezier(0.23, 1, 0.32, 1);
-    position: relative;
-    background: rgba(10,10,10,0.6);
+    transition: background 0.15s, border-color 0.15s;
 }
 .pol-item:hover {
-    background: rgba(255,255,255,0.04);
-    border-color: rgba(0,255,159,0.5);
-    transform: translateX(4px) scale(1.01);
-    box-shadow: 0 4px 20px rgba(0,255,159,0.1);
+    background: rgba(255,255,255,0.03);
+    border-color: rgba(255,255,255,0.1);
 }
 .pol-item.active {
     border-color: #00ff9f;
-    background: rgba(0,255,159,0.12);
-    box-shadow: 0 0 0 2px rgba(0,255,159,0.6), 0 0 30px rgba(0,255,159,0.3);
-    transform: scale(1.02);
+    background: rgba(0,255,159,0.06);
 }
-.pol-item.active::after {
-    content: '★';
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 0.9rem;
-    color: #00ff9f;
-    text-shadow: 0 0 12px #00ff9f;
-}
+.pol-item *, .pol-item *:hover { text-decoration: none !important; }
 .pol-name {
     font-family: 'Space Grotesk', sans-serif;
-    font-weight: 700;
-    font-size: 0.92rem;
+    font-weight: 600;
+    font-size: 0.84rem;
     color: #fff;
-    line-height: 1.1;
-    letter-spacing: -0.015em;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
 }
 .pol-meta {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.6rem;
+    font-size: 0.59rem;
     color: #8a8a8a;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    margin-top: 2px;
+    margin-top: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .pol-s-label {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.55rem;
+    font-size: 0.53rem;
     color: #6a6a6a;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     line-height: 1;
-    margin-bottom: 2px;
+    margin-bottom: 3px;
 }
 .pol-s-value {
     font-family: 'Space Grotesk', sans-serif;
-    font-weight: 700;
-    font-size: 0.92rem;
+    font-weight: 600;
+    font-size: 0.82rem;
     color: #fff;
     line-height: 1;
-    letter-spacing: -0.025em;
+    letter-spacing: -0.02em;
 }
 .pol-s-value.dim { color: #4a4a4a; font-weight: 400; }
+.pol-s-value.pos { color: #ff6b6b; }
+.pol-s-value.neg { color: #00ff9f; }
 
 /* ---------- RIGHT COLUMN: HERO ---------- */
 .hero-top {
@@ -240,27 +229,6 @@ div[data-testid="stVerticalBlock"] { gap: 0 !important; }
     padding: 0.85rem 1rem 0.6rem;
     gap: 1rem;
     flex-wrap: wrap;
-    position: relative;
-    overflow: hidden;
-}
-.hero-top::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 40%;
-    height: 100%;
-    background: linear-gradient(
-        90deg,
-        transparent,
-        rgba(0,255,159,0.25),
-        transparent
-    );
-    animation: scanline 2.8s linear infinite;
-}
-@keyframes scanline {
-    0% { left: -100%; }
-    100% { left: 300%; }
 }
 .hero-name {
     font-family: 'Space Grotesk', sans-serif;
@@ -313,44 +281,25 @@ div[data-testid="stVerticalBlock"] { gap: 0 !important; }
 /* Verdict line */
 .verdict-line {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 1.08rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    color: #e0e0e0;
+    font-size: 0.98rem;
+    font-weight: 500;
+    letter-spacing: 0.015em;
+    color: #d0d0d0;
     background: #0a0a0a;
-    border-left: 2px solid rgba(0,255,159,0.3);
-    border-right: 2px solid rgba(0,255,159,0.3);
-    padding: 0.6rem 1.25rem 1rem;
-    text-shadow: 0 0 20px rgba(0,0,0,0.8);
-    box-shadow: 0 0 30px rgba(0,255,159,0.08);
+    border-left: 1px solid rgba(255,255,255,0.08);
+    border-right: 1px solid rgba(255,255,255,0.08);
+    padding: 0.5rem 1rem 0.78rem;
 }
-.verdict-line .good { 
-    color: #00ff9f; 
-    font-weight: 700; 
-    text-shadow: 0 0 16px rgba(0,255,159,0.5);
-}
+.verdict-line .good { color: #00ff9f; font-weight: 600; }
 .verdict-line .muted { color: #b8b8b8; font-weight: 500; }
-.verdict-line .gap-val { 
-    color: #ff4d4d; 
-    font-weight: 800; 
-    text-shadow: 0 0 16px rgba(255,77,77,0.6);
-}
-.verdict-line .gap-val.pos { 
-    color: #00ff9f; 
-    font-weight: 800;
-    text-shadow: 0 0 16px rgba(0,255,159,0.6);
-}
+.verdict-line .gap-val { color: #ff4d4d; font-weight: 700; }
 
 /* Chart wrapper — plotly container becomes the middle of the card */
 [data-testid="stPlotlyChart"] {
     background: #000000 !important;
     border-left: 1px solid rgba(255,255,255,0.08) !important;
     border-right: 1px solid rgba(255,255,255,0.08) !important;
-    padding: 0.25rem 0.5rem 0.15rem !important;
-    box-shadow: 0 0 0 1px rgba(0,255,159,0.08);
-}
-.stPlotlyChart > div {
-    height: 460px !important;
+    padding: 0.2rem 0.4rem 0.2rem !important;
 }
 
 /* Caption */
@@ -367,32 +316,31 @@ div[data-testid="stVerticalBlock"] { gap: 0 !important; }
     text-transform: uppercase;
 }
 
-/* ---------- LEDGER (Premium Tape Style from main site) ---------- */
+/* ---------- LEDGER ---------- */
 .ledger-title {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.78rem;
-    letter-spacing: 0.25em;
+    font-size: 0.72rem;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
-    color: #00ff9f;
-    margin: 1.6rem 0 0.65rem;
-    font-weight: 700;
-    text-shadow: 0 0 12px rgba(0,255,159,0.3);
+    color: #8a8a8a;
+    margin: 1.4rem 0 0.55rem;
+    font-weight: 600;
 }
 .stDataFrame {
     background: #0a0a0a !important;
-    border: 2px solid rgba(0,255,159,0.15) !important;
-    border-radius: 6px !important;
-    box-shadow: 0 0 40px rgba(0,255,159,0.06);
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    border-radius: 4px !important;
 }
 .stDataFrame table {
     font-family: 'JetBrains Mono', monospace !important;
     font-size: 0.78rem !important;
 }
 .stDataFrame th {
-    background: rgba(0,255,159,0.08) !important;
-    color: #00ff9f !important;
-    font-weight: 700 !important;
+    background: #0f0f0f !important;
+    color: #8a8a8a !important;
+    font-weight: 600 !important;
     letter-spacing: 0.1em !important;
+    text-transform: uppercase !important;
 }
 
 /* Progress bar */
@@ -738,22 +686,26 @@ FEATURED_POLITICIANS = [
 ]
 
 
+
 @st.cache_data(ttl=86400, show_spinner=False)
 def pick_default_politician(trades, hold_days=90):
-    """Professional backend: Smart default selector with Conflict Score.
+    """Pick the clearest cold-load example for a normal person.
 
-    The "brain" scores politicians on:
-      - Alpha Gap (pol beats retail significantly)
-      - Trade Volume (more trades = more damning)
-      - Consistency (high win rate for politician)
-      - Recency (recent activity feels more relevant)
-
-    Picks the single most screenshot-worthy "brutal" example on cold load.
+    Priority:
+      1) politician return clearly positive
+      2) retail return flat or negative
+      3) biggest positive gap
+    Also seeds a small gap cache for prominent names so the picker doesn't look empty.
     """
+    summary = build_politician_summary(trades)
+    top_traders = summary.sort_values("trades", ascending=False)["politician"].head(18).tolist()
+    candidate_names = []
+    for name in FEATURED_POLITICIANS + top_traders:
+        if name in trades["politician"].values and name not in candidate_names:
+            candidate_names.append(name)
+
     cache = {}
-    for name in FEATURED_POLITICIANS:
-        if name not in trades["politician"].values:
-            continue
+    for name in candidate_names:
         tr = trades[
             (trades["politician"] == name) &
             (~trades["type"].str.contains("sale", case=False, na=False))
@@ -764,32 +716,35 @@ def pick_default_politician(trades, hold_days=90):
         if len(bt) < 3:
             continue
         s = compute_lag_stats(bt)
-        
-        # Professional Conflict Score (higher = more damning for copy-trading)
-        gap = s["alpha_gap"]
-        vol = len(bt)
-        win_rate = s.get("pol_win_rate", 50) / 100.0
-        recency_bonus = 1.0  # Could be enhanced with latest_trade
-        
-        conflict_score = (gap * 0.5) + (vol * 0.02) + (win_rate * 3) + recency_bonus
-        
         cache[name] = {
             "pol_return": s["politician_return"],
             "retail_return": s["retail_return"],
-            "gap": gap,
-            "conflict_score": round(conflict_score, 2),
-            "vol": vol,
-            "win_rate": s.get("pol_win_rate", 0),
+            "gap": s["alpha_gap"],
+            "trades": len(bt),
         }
 
     if not cache:
-        fallback = trades["politician"].value_counts().idxmax() if len(trades) else ""
+        fallback = summary.sort_values("trades", ascending=False).iloc[0]["politician"] if len(summary) else ""
         return fallback, {}
 
-    # Pro brain: Prioritize high conflict_score with positive gap and good volume
-    best = max(cache.items(), key=lambda x: x[1]["conflict_score"])[0]
+    slam_dunks = {
+        n: d for n, d in cache.items()
+        if d["pol_return"] > 1.5 and d["retail_return"] <= 0.5 and d["gap"] >= 3.0
+    }
+    pool = slam_dunks if slam_dunks else {n: d for n, d in cache.items() if d["gap"] > 0}
+    if not pool:
+        pool = cache
 
-    # Return the best + full stats for seeding the left list
+    best = max(
+        pool.items(),
+        key=lambda item: (
+            item[1]["gap"],
+            item[1]["pol_return"],
+            -max(item[1]["retail_return"], 0),
+            item[1]["trades"],
+        ),
+    )[0]
+
     return best, {n: d["gap"] for n, d in cache.items()}
 
 
@@ -879,7 +834,7 @@ latest_trade_date = trades["transaction_date"].max().strftime("%b %d, %Y")
 st.markdown(f"""
 <div class="tool-header">
   <div class="tool-title">
-    <img src="/home/workdir/artifacts/signal5_logo.png" class="logo" alt="Signal 05">
+    <span class="tool-dot"></span>
     SIGNAL 05 · CONGRESSIONAL CONFLICT SCORE
   </div>
   <div class="tool-meta">Data from Quiver · Updated {latest_trade_date}</div>
@@ -915,9 +870,13 @@ with col_left:
     filtered_sum = summary.copy()
     if q:
         filtered_sum = filtered_sum[filtered_sum["politician"].str.lower().str.contains(q, na=False)]
-    filtered_sum = filtered_sum.sort_values("trades", ascending=False).head(60)
+    else:
+        filtered_sum = filtered_sum[filtered_sum["trades"] >= 3]
 
     gap_cache = st.session_state["gap_cache"]
+    filtered_sum["known_gap"] = filtered_sum["politician"].map(gap_cache)
+    filtered_sum["_gap_sort"] = filtered_sum["known_gap"].fillna(-999)
+    filtered_sum = filtered_sum.sort_values(["_gap_sort", "trades"], ascending=[False, False]).head(60)
 
     rows = []
     for _, r in filtered_sum.iterrows():
@@ -946,7 +905,12 @@ with col_left:
         gap_val = gap_cache.get(name)
         if gap_val is not None:
             gap_display = f"{gap_val:+.1f}pp"
-            gap_class = ""
+            if gap_val > 1:
+                gap_class = " pos"
+            elif gap_val < -1:
+                gap_class = " neg"
+            else:
+                gap_class = ""
         else:
             gap_display = "—"
             gap_class = " dim"
@@ -958,6 +922,7 @@ with col_left:
             f'<a href="{href}" class="pol-item{active_cls}" target="_self">'
             f'<div><div class="pol-name">{name}</div><div class="pol-meta">{meta_line}</div></div>'
             f'<div><div class="pol-s-label">Trades</div><div class="pol-s-value">{trades_count}</div></div>'
+            f'<div><div class="pol-s-label">Lag</div><div class="pol-s-value">{avg_lag}d</div></div>'
             f'<div><div class="pol-s-label">Avg. Gap</div><div class="pol-s-value{gap_class}">{gap_display}</div></div>'
             f'</a>'
         )
@@ -1000,18 +965,6 @@ with col_right:
     ret_r = stats["retail_return"]
     gap = stats["alpha_gap"]
     avg_lag = int(round(stats["avg_lag_days"]))
-
-    # Conditional verdict text and annotation based on who actually won (for honest communication)
-    if gap >= 0:
-        gap_text = f"{gap:.1f}pp stolen by the lag"
-        gap_class = "gap-val"
-        annotation_text = f"<b>{gap:.1f}pp</b> stolen"
-        annotation_color = "#ff4d4d"
-    else:
-        gap_text = f"{abs(gap):.1f}pp retail outperformed"
-        gap_class = "gap-val pos"
-        annotation_text = f"<b>{abs(gap):.1f}pp</b> retail beat"
-        annotation_color = "#00ff9f"
 
     # Cache the computed gap so the left-list "Avg. Gap" column fills in over time
     st.session_state["gap_cache"][selected_politician] = gap
@@ -1057,7 +1010,7 @@ with col_right:
     <div class="verdict-line">
       They captured <span class="good">{pol_r:+.1f}%</span>
       · You get <span class="muted">{ret_r:+.1f}%</span>
-      · <span class="{gap_class}">{gap_text}</span>
+      · <span class="gap-val">{gap:.1f}pp stolen by the lag</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1065,103 +1018,108 @@ with col_right:
     pol_eq = stats["pol_equity_curve"]
     retail_eq = stats["retail_equity_curve"]
 
+
+    pol_eq = stats["pol_equity_curve"].copy()
+    retail_eq = stats["retail_equity_curve"].copy()
+    pol_eq["perf"] = pol_eq["equity"] - 100
+    retail_eq["perf"] = retail_eq["equity"] - 100
+
     fig = go.Figure()
 
-    # Retail (red) first so the politician line's fill="tonexty" shades between them
     fig.add_trace(go.Scatter(
         x=retail_eq["date"],
-        y=retail_eq["equity"],
+        y=retail_eq["perf"],
         mode="lines",
         name="You",
         line=dict(color="#ff4d4d", width=3),
     ))
     fig.add_trace(go.Scatter(
         x=pol_eq["date"],
-        y=pol_eq["equity"],
+        y=pol_eq["perf"],
         mode="lines",
         name="Them",
-        line=dict(color="#00ff9f", width=3.5),
+        line=dict(color="#00ff9f", width=3),
         fill="tonexty",
-        fillcolor="rgba(255,77,77,0.22)",
+        fillcolor="rgba(255,77,77,0.14)",
     ))
 
-    # End-point value callouts for instant comprehension
-    if len(pol_eq) > 0:
-        fig.add_annotation(
-            x=pol_eq["date"].iloc[-1],
-            y=pol_eq["equity"].iloc[-1],
-            text=f"Them {pol_r:+.1f}%",
-            showarrow=False,
-            font=dict(family="JetBrains Mono", size=11, color="#00ff9f"),
-            xanchor="left",
-            yanchor="middle",
-            bgcolor="rgba(0,0,0,0.75)",
-            borderpad=4,
-            bordercolor="rgba(0,255,159,0.4)",
-            borderwidth=1,
-        )
-    if len(retail_eq) > 0:
-        fig.add_annotation(
-            x=retail_eq["date"].iloc[-1],
-            y=retail_eq["equity"].iloc[-1],
-            text=f"You {ret_r:+.1f}%",
-            showarrow=False,
-            font=dict(family="JetBrains Mono", size=11, color="#ff4d4d"),
-            xanchor="left",
-            yanchor="middle",
-            bgcolor="rgba(0,0,0,0.75)",
-            borderpad=4,
-            bordercolor="rgba(255,77,77,0.4)",
-            borderwidth=1,
-        )
-
-    # One inline label over the gap
     if len(pol_eq) > 0 and len(retail_eq) > 0:
         mid_p = len(pol_eq) // 2
         mid_r = min(mid_p, len(retail_eq) - 1)
         mid_x = pol_eq["date"].iloc[mid_p]
-        mid_y = (pol_eq["equity"].iloc[mid_p] + retail_eq["equity"].iloc[mid_r]) / 2
+        mid_y = (pol_eq["perf"].iloc[mid_p] + retail_eq["perf"].iloc[mid_r]) / 2
         fig.add_annotation(
             x=mid_x, y=mid_y,
-            text=annotation_text,
+            text=f"<b>{gap:.1f}pp</b> stolen",
             showarrow=False,
-            font=dict(family="JetBrains Mono", size=16, color=annotation_color, weight=700),
-            bgcolor="rgba(0,0,0,0.85)",
-            bordercolor="rgba(255,77,77,0.7)" if gap >= 0 else "rgba(0,255,159,0.7)",
-            borderwidth=2,
-            borderpad=8,
+            font=dict(family="JetBrains Mono", size=13, color="#ff4d4d"),
+            bgcolor="rgba(0,0,0,0.82)",
+            bordercolor="rgba(255,77,77,0.55)",
+            borderwidth=1,
+            borderpad=6,
         )
 
+        fig.add_annotation(
+            x=pol_eq["date"].iloc[-1],
+            y=pol_eq["perf"].iloc[-1],
+            text=f"<b>Them {pol_r:+.1f}%</b>",
+            showarrow=False,
+            xanchor="left",
+            yanchor="bottom",
+            xshift=8,
+            yshift=8,
+            font=dict(family="JetBrains Mono", size=12, color="#00ff9f"),
+            bgcolor="rgba(0,0,0,0.85)",
+            bordercolor="rgba(0,255,159,0.35)",
+            borderwidth=1,
+            borderpad=5,
+        )
+        fig.add_annotation(
+            x=retail_eq["date"].iloc[-1],
+            y=retail_eq["perf"].iloc[-1],
+            text=f"<b>You {ret_r:+.1f}%</b>",
+            showarrow=False,
+            xanchor="left",
+            yanchor="top",
+            xshift=8,
+            yshift=-8,
+            font=dict(family="JetBrains Mono", size=12, color="#ff4d4d"),
+            bgcolor="rgba(0,0,0,0.85)",
+            bordercolor="rgba(255,77,77,0.35)",
+            borderwidth=1,
+            borderpad=5,
+        )
+
+    y_values = list(pol_eq["perf"]) + list(retail_eq["perf"])
+    y_min = min(y_values) if y_values else -1
+    y_max = max(y_values) if y_values else 1
+    pad = max(1.5, (y_max - y_min) * 0.22)
+
     fig.update_layout(
-        height=520,
-        margin=dict(l=50, r=20, t=26, b=36),
+        height=430,
+        margin=dict(l=44, r=110, t=24, b=40),
         paper_bgcolor="#000000",
         plot_bgcolor="#000000",
         font=dict(family="JetBrains Mono", size=10, color="#8a8a8a"),
         xaxis=dict(
             gridcolor="rgba(255,255,255,0.04)",
-            zerolinecolor="rgba(255,255,255,0.08)",
+            zeroline=False,
             title="",
             showspikes=False,
         ),
         yaxis=dict(
-            gridcolor="rgba(255,255,255,0.04)",
-            zerolinecolor="rgba(255,255,255,0.08)",
+            gridcolor="rgba(255,255,255,0.05)",
+            zeroline=True,
+            zerolinecolor="rgba(255,255,255,0.14)",
             title="",
-            showticklabels=True,
+            ticksuffix="%",
+            range=[y_min - pad, y_max + pad],
         ),
-        legend=dict(
-            orientation="h",
-            yanchor="bottom", y=1.02,
-            xanchor="right", x=1.0,
-            bgcolor="rgba(0,0,0,0)",
-            font=dict(size=11, color="#b0b0b0"),
-        ),
+        showlegend=False,
         hovermode="x unified",
     )
 
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-
     # --- Caption ---
     st.markdown(f"""
     <div class="chart-caption">
