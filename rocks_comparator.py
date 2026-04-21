@@ -265,6 +265,7 @@ div[data-testid="stVerticalBlock"] { gap: 0 !important; }
     padding: 0.35rem 1rem 0.7rem;
 }
 .verdict-line .good { color: #00ff9f; font-weight: 600; }
+.verdict-line .muted { color: #b8b8b8; font-weight: 500; }
 .verdict-line .bad  { color: #ff4d4d; font-weight: 600; }
 .verdict-line .gap-val { color: #ff4d4d; font-weight: 700; }
 .verdict-line .gap-val.pos { color: #00ff9f; }
@@ -416,6 +417,19 @@ def normalize_df(df, source_type):
     for k in ["range", "amount", "value", "size", "trade_size", "transactionsize"]:
         if k in lower_cols:
             out["amount"] = df[lower_cols[k]].astype(str)
+            break
+    # Optional — present on some Quiver endpoints, absent on others. Purely additive.
+    for k in ["party"]:
+        if k in lower_cols:
+            out["party"] = df[lower_cols[k]].astype(str).str.strip()
+            break
+    for k in ["state"]:
+        if k in lower_cols:
+            out["state"] = df[lower_cols[k]].astype(str).str.strip()
+            break
+    for k in ["chamber", "house", "body"]:
+        if k in lower_cols:
+            out["chamber"] = df[lower_cols[k]].astype(str).str.strip()
             break
 
     required = ["politician", "ticker", "transaction_date"]
@@ -604,13 +618,85 @@ def build_politician_summary(trades_df):
     """Per-politician aggregates from the already-loaded trades dataframe."""
     purchases = trades_df[~trades_df["type"].str.contains("sale", case=False, na=False)].copy()
     purchases["lag_days"] = (purchases["disclosure_date"] - purchases["transaction_date"]).dt.days
-    g = purchases.groupby("politician").agg(
-        trades=("ticker", "count"),
-        avg_lag_days=("lag_days", "mean"),
-        latest_trade=("transaction_date", "max"),
-    ).reset_index()
+    agg_spec = {
+        "trades": ("ticker", "count"),
+        "avg_lag_days": ("lag_days", "mean"),
+        "latest_trade": ("transaction_date", "max"),
+    }
+    for col in ["party", "state", "chamber"]:
+        if col in purchases.columns:
+            agg_spec[col] = (col, "first")
+    g = purchases.groupby("politician").agg(**agg_spec).reset_index()
     g["avg_lag_days"] = g["avg_lag_days"].fillna(30).round(0).astype(int)
     return g
+
+
+FEATURED_POLITICIANS = [
+    "Nancy Pelosi",
+    "Dan Crenshaw",
+    "Tommy Tuberville",
+    "Michael McCaul",
+    "Josh Gottheimer",
+    "Mark Green",
+    "Kevin Hern",
+    "Ro Khanna",
+    "Kathy Manning",
+    "Alan Lowenthal",
+]
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def pick_default_politician(trades, hold_days=90):
+    """Prescan a short featured list, pick the politician with the most brutal gap.
+
+    Rules (per user):
+      - pol return meaningfully positive
+      - retail return flat or negative
+      - gap large enough to be visually obvious
+    Sort surviving candidates by biggest positive gap; fall back to max-gap overall,
+    then to most-traded politician if the prescan returns nothing usable.
+    """
+    cache = {}
+    for name in FEATURED_POLITICIANS:
+        if name not in trades["politician"].values:
+            continue
+        tr = trades[
+            (trades["politician"] == name) &
+            (~trades["type"].str.contains("sale", case=False, na=False))
+        ]
+        if len(tr) < 3:
+            continue
+        bt = backtest_with_lag_analysis(tr, hold_days=hold_days)
+        if len(bt) < 3:
+            continue
+        s = compute_lag_stats(bt)
+        cache[name] = {
+            "pol_return": s["politician_return"],
+            "retail_return": s["retail_return"],
+            "gap": s["alpha_gap"],
+        }
+
+    if not cache:
+        fallback = trades["politician"].value_counts().idxmax() if len(trades) else ""
+        return fallback, {}
+
+    # Slam-dunk filter: pol solidly positive, retail flat/neg, gap >= 3pp
+    slam_dunks = [
+        (n, d) for n, d in cache.items()
+        if d["pol_return"] > 2.0 and d["retail_return"] <= 1.0 and d["gap"] >= 3.0
+    ]
+    if slam_dunks:
+        best = max(slam_dunks, key=lambda x: x[1]["gap"])[0]
+    else:
+        # Fall back to biggest positive gap among prescanned
+        positive = [(n, d) for n, d in cache.items() if d["gap"] > 0]
+        if positive:
+            best = max(positive, key=lambda x: x[1]["gap"])[0]
+        else:
+            best = max(cache.items(), key=lambda x: x[1]["gap"])[0]
+
+    # Return only the gap-per-name dict for cache seeding
+    return best, {n: d["gap"] for n, d in cache.items()}
 
 
 def relative_date(d):
@@ -675,13 +761,20 @@ if len(summary) == 0:
     st.error("No politicians with purchase trades in the dataset.")
     st.stop()
 
-default_pol = summary.sort_values("trades", ascending=False).iloc[0]["politician"]
-selected_politician = qp.get("p", default_pol)
-if selected_politician not in summary["politician"].values:
-    selected_politician = default_pol
+# Hero default: prescan a featured list, pick the most brutal example.
+with st.spinner("Warming up..."):
+    prescan_default, prescan_gaps = pick_default_politician(trades, hold_days=hold_days)
 
 if "gap_cache" not in st.session_state:
     st.session_state["gap_cache"] = {}
+# Seed the gap cache with prescan results so featured names show real gaps immediately
+for _name, _gap in prescan_gaps.items():
+    st.session_state["gap_cache"].setdefault(_name, _gap)
+
+default_pol = prescan_default if prescan_default else summary.sort_values("trades", ascending=False).iloc[0]["politician"]
+selected_politician = qp.get("p", default_pol)
+if selected_politician not in summary["politician"].values:
+    selected_politician = default_pol
 
 
 # ===================================================================
@@ -735,8 +828,23 @@ with col_left:
         is_active = (name == selected_politician)
         trades_count = int(r["trades"])
         avg_lag = int(r["avg_lag_days"])
-        latest = relative_date(r["latest_trade"])
-        meta_line = f"{latest} · {avg_lag}d avg lag"
+
+        # Meta line: prefer party · state · chamber; fall back to latest-activity
+        meta_bits = []
+        party_val = r.get("party") if "party" in r.index else None
+        state_val = r.get("state") if "state" in r.index else None
+        chamber_val = r.get("chamber") if "chamber" in r.index else None
+        if pd.notna(party_val) and str(party_val).strip() and str(party_val).lower() != "nan":
+            meta_bits.append(str(party_val)[:1].upper())
+        if pd.notna(state_val) and str(state_val).strip() and str(state_val).lower() != "nan":
+            meta_bits.append(str(state_val).upper()[:2])
+        if pd.notna(chamber_val) and str(chamber_val).strip() and str(chamber_val).lower() != "nan":
+            ch = str(chamber_val).strip()
+            meta_bits.append("House" if "house" in ch.lower() or ch.lower() == "h" else ("Senate" if "senate" in ch.lower() or ch.lower() == "s" else ch))
+        if meta_bits:
+            meta_line = " · ".join(meta_bits) + f" · {avg_lag}d lag"
+        else:
+            meta_line = f"{relative_date(r['latest_trade'])} · {avg_lag}d avg lag"
 
         gap_val = gap_cache.get(name)
         if gap_val is not None:
@@ -802,7 +910,18 @@ with col_right:
     # --- Hero top row: name + meta + hold pills ---
     active_row = summary[summary["politician"] == selected_politician].iloc[0]
     active_latest = relative_date(active_row["latest_trade"])
-    hero_meta = f"{int(active_row['trades'])} trades · latest {active_latest}"
+
+    hero_meta_bits = []
+    for col, fmt in [("party", lambda v: str(v)[:1].upper()),
+                     ("state", lambda v: str(v).upper()[:2]),
+                     ("chamber", lambda v: "House" if "house" in str(v).lower() or str(v).lower() == "h" else ("Senate" if "senate" in str(v).lower() or str(v).lower() == "s" else str(v)))]:
+        if col in active_row.index:
+            val = active_row[col]
+            if pd.notna(val) and str(val).strip() and str(val).lower() != "nan":
+                hero_meta_bits.append(fmt(val))
+    hero_meta_bits.append(f"{int(active_row['trades'])} trades")
+    hero_meta_bits.append(f"latest {active_latest}")
+    hero_meta = " · ".join(hero_meta_bits)
 
     hold_options = [30, 60, 90, 180, 365]
     hold_pills = "".join(
@@ -824,17 +943,12 @@ with col_right:
     </div>
     """, unsafe_allow_html=True)
 
-    # --- Verdict line: one sentence ---
-    if gap >= 0:
-        gap_phrase = f'<span class="gap-val">{gap:.1f}pp stolen by the lag</span>'
-    else:
-        gap_phrase = f'<span class="gap-val pos">{abs(gap):.1f}pp retail got lucky on</span>'
-
+    # --- Verdict line: one sentence, always the same shape ---
     st.markdown(f"""
     <div class="verdict-line">
       They captured <span class="good">{pol_r:+.1f}%</span>
-      · You get <span class="bad">{ret_r:+.1f}%</span>
-      · {gap_phrase}
+      · You get <span class="muted">{ret_r:+.1f}%</span>
+      · <span class="gap-val">{gap:.1f}pp stolen by the lag</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -849,45 +963,35 @@ with col_right:
         x=retail_eq["date"],
         y=retail_eq["equity"],
         mode="lines",
-        name="You (disclosure-date entry)",
+        name="You",
         line=dict(color="#ff4d4d", width=3),
     ))
     fig.add_trace(go.Scatter(
         x=pol_eq["date"],
         y=pol_eq["equity"],
         mode="lines",
-        name="Them (trade-date entry)",
+        name="Them",
         line=dict(color="#00ff9f", width=3),
         fill="tonexty",
-        fillcolor="rgba(255,77,77,0.09)" if gap >= 0 else "rgba(0,255,159,0.08)",
+        fillcolor="rgba(255,77,77,0.10)",
     ))
 
-    # Midpoint gap label
+    # One inline label over the gap
     if len(pol_eq) > 0 and len(retail_eq) > 0:
         mid_p = len(pol_eq) // 2
         mid_r = min(mid_p, len(retail_eq) - 1)
         mid_x = pol_eq["date"].iloc[mid_p]
         mid_y = (pol_eq["equity"].iloc[mid_p] + retail_eq["equity"].iloc[mid_r]) / 2
-        if gap >= 0:
-            ann_text = f"<b>{gap:.1f}pp</b> stolen"
-            ann_color = "#ff4d4d"
-            ann_border = "rgba(255,77,77,0.5)"
-        else:
-            ann_text = f"<b>{abs(gap):.1f}pp</b> retail luck"
-            ann_color = "#00ff9f"
-            ann_border = "rgba(0,255,159,0.5)"
         fig.add_annotation(
             x=mid_x, y=mid_y,
-            text=ann_text,
+            text=f"<b>{gap:.1f}pp</b> stolen",
             showarrow=False,
-            font=dict(family="JetBrains Mono", size=12, color=ann_color),
+            font=dict(family="JetBrains Mono", size=12, color="#ff4d4d"),
             bgcolor="rgba(0,0,0,0.78)",
-            bordercolor=ann_border,
+            bordercolor="rgba(255,77,77,0.5)",
             borderwidth=1,
             borderpad=5,
         )
-
-    fig.add_hline(y=100, line_dash="dot", line_color="rgba(255,255,255,0.1)")
 
     fig.update_layout(
         height=400,
@@ -904,15 +1008,15 @@ with col_right:
         yaxis=dict(
             gridcolor="rgba(255,255,255,0.04)",
             zerolinecolor="rgba(255,255,255,0.08)",
-            title="$100 start",
-            title_font=dict(size=9, color="#6a6a6a"),
+            title="",
+            showticklabels=True,
         ),
         legend=dict(
             orientation="h",
             yanchor="bottom", y=1.02,
             xanchor="right", x=1.0,
             bgcolor="rgba(0,0,0,0)",
-            font=dict(size=10, color="#8a8a8a"),
+            font=dict(size=11, color="#b0b0b0"),
         ),
         hovermode="x unified",
     )
@@ -939,8 +1043,23 @@ display_bt = display_bt.sort_values("alpha_gap", ascending=False)
 display_bt.columns = ["Ticker", "Trade Date", "Disclosed", "Lag (days)",
                       "Their %", "Your %", "Gap (pp)"]
 
+
+def _style_gap(v):
+    try:
+        x = float(v)
+    except Exception:
+        return ""
+    if x > 1.0:
+        return "color: #ff4d4d; font-weight: 600"
+    if x < -1.0:
+        return "color: #00ff9f; font-weight: 600"
+    return "color: #8a8a8a"
+
+
+styled_bt = display_bt.style.map(_style_gap, subset=["Gap (pp)"])
+
 st.dataframe(
-    display_bt,
+    styled_bt,
     use_container_width=True,
     hide_index=True,
     height=min(460, 38 * (len(display_bt) + 1) + 3),
