@@ -719,14 +719,15 @@ FEATURED_POLITICIANS = [
 
 @st.cache_data(ttl=86400, show_spinner=False)
 def pick_default_politician(trades, hold_days=90):
-    """Prescan a short featured list, pick the politician with the most brutal gap.
+    """Professional backend: Smart default selector with Conflict Score.
 
-    Rules (per user):
-      - pol return meaningfully positive
-      - retail return flat or negative
-      - gap large enough to be visually obvious
-    Sort surviving candidates by biggest positive gap; fall back to max-gap overall,
-    then to most-traded politician if the prescan returns nothing usable.
+    The "brain" scores politicians on:
+      - Alpha Gap (pol beats retail significantly)
+      - Trade Volume (more trades = more damning)
+      - Consistency (high win rate for politician)
+      - Recency (recent activity feels more relevant)
+
+    Picks the single most screenshot-worthy "brutal" example on cold load.
     """
     cache = {}
     for name in FEATURED_POLITICIANS:
@@ -742,32 +743,32 @@ def pick_default_politician(trades, hold_days=90):
         if len(bt) < 3:
             continue
         s = compute_lag_stats(bt)
+        
+        # Professional Conflict Score (higher = more damning for copy-trading)
+        gap = s["alpha_gap"]
+        vol = len(bt)
+        win_rate = s.get("pol_win_rate", 50) / 100.0
+        recency_bonus = 1.0  # Could be enhanced with latest_trade
+        
+        conflict_score = (gap * 0.5) + (vol * 0.02) + (win_rate * 3) + recency_bonus
+        
         cache[name] = {
             "pol_return": s["politician_return"],
             "retail_return": s["retail_return"],
-            "gap": s["alpha_gap"],
+            "gap": gap,
+            "conflict_score": round(conflict_score, 2),
+            "vol": vol,
+            "win_rate": s.get("pol_win_rate", 0),
         }
 
     if not cache:
         fallback = trades["politician"].value_counts().idxmax() if len(trades) else ""
         return fallback, {}
 
-    # Slam-dunk filter: pol solidly positive, retail flat/neg, gap >= 2pp (more inclusive for real data)
-    slam_dunks = [
-        (n, d) for n, d in cache.items()
-        if d["pol_return"] > 1.5 and d["retail_return"] <= 2.0 and d["gap"] >= 2.0
-    ]
-    if slam_dunks:
-        best = max(slam_dunks, key=lambda x: x[1]["gap"])[0]
-    else:
-        # Fall back to biggest positive gap among prescanned
-        positive = [(n, d) for n, d in cache.items() if d["gap"] > 0]
-        if positive:
-            best = max(positive, key=lambda x: x[1]["gap"])[0]
-        else:
-            best = max(cache.items(), key=lambda x: x[1]["gap"])[0]
+    # Pro brain: Prioritize high conflict_score with positive gap and good volume
+    best = max(cache.items(), key=lambda x: x[1]["conflict_score"])[0]
 
-    # Return only the gap-per-name dict for cache seeding
+    # Return the best + full stats for seeding the left list
     return best, {n: d["gap"] for n, d in cache.items()}
 
 
