@@ -642,6 +642,12 @@ FEATURED_POLITICIANS = [
     "Ro Khanna",
     "Kathy Manning",
     "Alan Lowenthal",
+    "Maxine Waters",
+    "Ron Wyden",
+    "Richard Burr",
+    "Kelly Loeffler",
+    "David Perdue",
+    "Marjorie Taylor Greene",
 ]
 
 
@@ -680,10 +686,10 @@ def pick_default_politician(trades, hold_days=90):
         fallback = trades["politician"].value_counts().idxmax() if len(trades) else ""
         return fallback, {}
 
-    # Slam-dunk filter: pol solidly positive, retail flat/neg, gap >= 3pp
+    # Slam-dunk filter: pol solidly positive, retail flat/neg, gap >= 2pp (more inclusive for real data)
     slam_dunks = [
         (n, d) for n, d in cache.items()
-        if d["pol_return"] > 2.0 and d["retail_return"] <= 1.0 and d["gap"] >= 3.0
+        if d["pol_return"] > 1.5 and d["retail_return"] <= 2.0 and d["gap"] >= 2.0
     ]
     if slam_dunks:
         best = max(slam_dunks, key=lambda x: x[1]["gap"])[0]
@@ -904,6 +910,18 @@ with col_right:
     gap = stats["alpha_gap"]
     avg_lag = int(round(stats["avg_lag_days"]))
 
+    # Conditional verdict text and annotation based on who actually won (for honest communication)
+    if gap >= 0:
+        gap_text = f"{gap:.1f}pp stolen by the lag"
+        gap_class = "gap-val"
+        annotation_text = f"<b>{gap:.1f}pp</b> stolen"
+        annotation_color = "#ff4d4d"
+    else:
+        gap_text = f"{abs(gap):.1f}pp retail outperformed"
+        gap_class = "gap-val pos"
+        annotation_text = f"<b>{abs(gap):.1f}pp</b> retail beat"
+        annotation_color = "#00ff9f"
+
     # Cache the computed gap so the left-list "Avg. Gap" column fills in over time
     st.session_state["gap_cache"][selected_politician] = gap
 
@@ -948,7 +966,7 @@ with col_right:
     <div class="verdict-line">
       They captured <span class="good">{pol_r:+.1f}%</span>
       · You get <span class="muted">{ret_r:+.1f}%</span>
-      · <span class="gap-val">{gap:.1f}pp stolen by the lag</span>
+      · <span class="{gap_class}">{gap_text}</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -976,6 +994,32 @@ with col_right:
         fillcolor="rgba(255,77,77,0.10)",
     ))
 
+    # End-point value callouts for instant comprehension
+    if len(pol_eq) > 0:
+        fig.add_annotation(
+            x=pol_eq["date"].iloc[-1],
+            y=pol_eq["equity"].iloc[-1],
+            text=f"Them {pol_r:+.1f}%",
+            showarrow=False,
+            font=dict(family="JetBrains Mono", size=9, color="#00ff9f"),
+            xanchor="left",
+            yanchor="middle",
+            bgcolor="rgba(0,0,0,0.6)",
+            borderpad=3,
+        )
+    if len(retail_eq) > 0:
+        fig.add_annotation(
+            x=retail_eq["date"].iloc[-1],
+            y=retail_eq["equity"].iloc[-1],
+            text=f"You {ret_r:+.1f}%",
+            showarrow=False,
+            font=dict(family="JetBrains Mono", size=9, color="#ff4d4d"),
+            xanchor="left",
+            yanchor="middle",
+            bgcolor="rgba(0,0,0,0.6)",
+            borderpad=3,
+        )
+
     # One inline label over the gap
     if len(pol_eq) > 0 and len(retail_eq) > 0:
         mid_p = len(pol_eq) // 2
@@ -984,11 +1028,11 @@ with col_right:
         mid_y = (pol_eq["equity"].iloc[mid_p] + retail_eq["equity"].iloc[mid_r]) / 2
         fig.add_annotation(
             x=mid_x, y=mid_y,
-            text=f"<b>{gap:.1f}pp</b> stolen",
+            text=annotation_text,
             showarrow=False,
-            font=dict(family="JetBrains Mono", size=12, color="#ff4d4d"),
+            font=dict(family="JetBrains Mono", size=12, color=annotation_color),
             bgcolor="rgba(0,0,0,0.78)",
-            bordercolor="rgba(255,77,77,0.5)",
+            bordercolor="rgba(255,77,77,0.5)" if gap >= 0 else "rgba(0,255,159,0.5)",
             borderwidth=1,
             borderpad=5,
         )
