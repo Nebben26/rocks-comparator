@@ -61,7 +61,7 @@ div[data-testid="stVerticalBlock"] { gap: 0 !important; }
 .tool-header {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
+    align-items: center;
     margin-bottom: 1rem;
     font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-size: 0.72rem;
@@ -71,7 +71,21 @@ div[data-testid="stVerticalBlock"] { gap: 0 !important; }
     border-bottom: 1px solid rgba(255,255,255,0.08);
     padding-bottom: 0.55rem;
 }
-.tool-title { color: #00ff9f; font-weight: 600; }
+.tool-header .logo { 
+    height: 42px; 
+    width: 42px; 
+    margin-right: 0.75rem; 
+    filter: drop-shadow(0 0 12px #00ff9f); 
+    vertical-align: middle;
+}
+.tool-title { 
+    color: #00ff9f; 
+    font-weight: 700; 
+    letter-spacing: 0.05em;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
 .tool-meta { font-size: 0.68rem; }
 
 /* ---------- LEFT COLUMN: PICKER ---------- */
@@ -140,21 +154,36 @@ div[data-testid="stVerticalBlock"] { gap: 0 !important; }
     grid-template-columns: 1.3fr 0.6fr 0.7fr;
     column-gap: 0.4rem;
     align-items: center;
-    padding: 0.45rem 0.55rem;
-    margin: 0.15rem 0;
+    padding: 0.55rem 0.6rem;
+    margin: 0.12rem 0;
     border: 1px solid transparent;
-    border-radius: 3px;
+    border-radius: 4px;
     text-decoration: none;
     color: inherit;
-    transition: background 0.15s, border-color 0.15s;
+    transition: all 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+    position: relative;
 }
 .pol-item:hover {
-    background: rgba(255,255,255,0.025);
-    border-color: rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.03);
+    border-color: rgba(0,255,159,0.3);
+    transform: translateX(2px);
 }
 .pol-item.active {
     border-color: #00ff9f;
-    background: rgba(0,255,159,0.06);
+    background: rgba(0,255,159,0.08);
+    box-shadow: 0 0 0 1px rgba(0,255,159,0.4);
+}
+.pol-item.active::after {
+    content: '';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 4px;
+    background: #00ff9f;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #00ff9f;
 }
 .pol-name {
     font-family: 'Space Grotesk', sans-serif;
@@ -203,6 +232,27 @@ div[data-testid="stVerticalBlock"] { gap: 0 !important; }
     padding: 0.85rem 1rem 0.6rem;
     gap: 1rem;
     flex-wrap: wrap;
+    position: relative;
+    overflow: hidden;
+}
+.hero-top::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 40%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(0,255,159,0.25),
+        transparent
+    );
+    animation: scanline 2.8s linear infinite;
+}
+@keyframes scanline {
+    0% { left: -100%; }
+    100% { left: 300%; }
 }
 .hero-name {
     font-family: 'Space Grotesk', sans-serif;
@@ -255,27 +305,43 @@ div[data-testid="stVerticalBlock"] { gap: 0 !important; }
 /* Verdict line */
 .verdict-line {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.85rem;
-    font-weight: 500;
-    letter-spacing: 0.02em;
+    font-size: 0.92rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
     color: #d0d0d0;
     background: #0a0a0a;
     border-left: 1px solid rgba(255,255,255,0.08);
     border-right: 1px solid rgba(255,255,255,0.08);
-    padding: 0.35rem 1rem 0.7rem;
+    padding: 0.45rem 1rem 0.85rem;
+    text-shadow: 0 0 12px rgba(0,0,0,0.6);
 }
-.verdict-line .good { color: #00ff9f; font-weight: 600; }
+.verdict-line .good { 
+    color: #00ff9f; 
+    font-weight: 700; 
+    text-shadow: 0 0 16px rgba(0,255,159,0.5);
+}
 .verdict-line .muted { color: #b8b8b8; font-weight: 500; }
-.verdict-line .bad  { color: #ff4d4d; font-weight: 600; }
-.verdict-line .gap-val { color: #ff4d4d; font-weight: 700; }
-.verdict-line .gap-val.pos { color: #00ff9f; }
+.verdict-line .gap-val { 
+    color: #ff4d4d; 
+    font-weight: 800; 
+    text-shadow: 0 0 16px rgba(255,77,77,0.6);
+}
+.verdict-line .gap-val.pos { 
+    color: #00ff9f; 
+    font-weight: 800;
+    text-shadow: 0 0 16px rgba(0,255,159,0.6);
+}
 
 /* Chart wrapper — plotly container becomes the middle of the card */
 [data-testid="stPlotlyChart"] {
     background: #000000 !important;
     border-left: 1px solid rgba(255,255,255,0.08) !important;
     border-right: 1px solid rgba(255,255,255,0.08) !important;
-    padding: 0.2rem 0.4rem 0.2rem !important;
+    padding: 0.25rem 0.5rem 0.15rem !important;
+    box-shadow: 0 0 0 1px rgba(0,255,159,0.08);
+}
+.stPlotlyChart > div {
+    height: 460px !important;
 }
 
 /* Caption */
@@ -790,7 +856,10 @@ if selected_politician not in summary["politician"].values:
 latest_trade_date = trades["transaction_date"].max().strftime("%b %d, %Y")
 st.markdown(f"""
 <div class="tool-header">
-  <div class="tool-title">Signal 05 · Congressional Conflict Score</div>
+  <div class="tool-title">
+    <img src="/home/workdir/artifacts/signal5_logo.png" class="logo" alt="Signal 05">
+    SIGNAL 05 · CONGRESSIONAL CONFLICT SCORE
+  </div>
   <div class="tool-meta">Data from Quiver · Updated {latest_trade_date}</div>
 </div>
 """, unsafe_allow_html=True)
@@ -1038,7 +1107,7 @@ with col_right:
         )
 
     fig.update_layout(
-        height=400,
+        height=460,
         margin=dict(l=50, r=20, t=26, b=36),
         paper_bgcolor="#000000",
         plot_bgcolor="#000000",
